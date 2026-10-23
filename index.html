@@ -1,1438 +1,890 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>LunaSync – 시차적응 도우미</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-:root {
-  --bg:           #1a1410;
-  --bg2:          #221c16;
-  --card:         #2a221a;
-  --card2:        #332a20;
-  --border:       #4a3d2e;
-  --border-light: #5c4d3a;
-  --morning:      #4fc3f7;
-  --morning-dim:  #1a4a5e;
-  --morning-glow: rgba(79,195,247,.18);
-  --amber:        #e8956d;
-  --amber-dark:   #d4704a;
-  --amber-dim:    #5e2e14;
-  --amber-glow:   rgba(232,149,109,.18);
-  --sleep:        #b85c6e;
-  --sleep-dark:   #8b3a50;
-  --sleep-dim:    #4a1a26;
-  --sleep-glow:   rgba(184,92,110,.18);
-  --sunglass:     #f0a500;
-  --sunglass-dim: #5a3a00;
-  --sunglass-glow:rgba(240,165,0,.18);
-  --awake:        #6ec6a0;
-  --awake-dim:    #1a4a34;
-  --awake-glow:   rgba(110,198,160,.18);
-  --cream:        #f5e6d3;
-  --text:         #ede0d0;
-  --text-muted:   #a89070;
-  --text-dim:     #6e5a46;
-  --accent:       #e8956d;
-  --accent2:      #f5c89a;
-  --danger:       #e05252;
-  --radius:       16px;
-  --radius-sm:    10px;
-  --shadow:       0 8px 32px rgba(0,0,0,.5);
-}
-html { scroll-behavior: smooth; }
-body {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.7;
-}
-header {
-  background: linear-gradient(135deg, #2e1e10 0%, #1a1410 70%);
-  border-bottom: 1px solid var(--border);
-  padding: 18px 24px;
-  display: flex; align-items: center; gap: 14px;
-  position: sticky; top: 0; z-index: 100;
-  backdrop-filter: blur(12px);
-}
-.logo-icon {
-  width: 44px; height: 44px;
-  background: linear-gradient(135deg, var(--amber), var(--amber-dark));
-  border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px; flex-shrink: 0;
-  box-shadow: 0 4px 16px var(--amber-glow);
-}
-header h1 { font-size: 22px; font-weight: 800; letter-spacing: -.5px; color: var(--cream); }
-header h1 span { color: var(--amber); }
-header p { font-size: 13px; color: var(--text-muted); margin-top: 1px; }
-.steps-bar {
-  display: flex; align-items: center; justify-content: center;
-  padding: 22px 24px 0; max-width: 700px; margin: 0 auto;
-}
-.step-item {
-  display: flex; flex-direction: column; align-items: center;
-  gap: 6px; flex: 1; position: relative;
-}
-.step-item:not(:last-child)::after {
-  content: ''; position: absolute; top: 17px;
-  left: calc(50% + 18px); width: calc(100% - 36px);
-  height: 2px; background: var(--border); z-index: 0;
-}
-.step-item.done:not(:last-child)::after,
-.step-item.active:not(:last-child)::after { background: var(--amber); }
-.step-num {
-  width: 34px; height: 34px; border-radius: 50%;
-  background: var(--card2); border: 2px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 700; color: var(--text-dim);
-  z-index: 1; transition: all .3s;
-}
-.step-item.active .step-num { background: var(--amber); border-color: var(--amber); color: #fff; box-shadow: 0 0 16px var(--amber-glow); }
-.step-item.done  .step-num  { background: var(--awake); border-color: var(--awake); color: #fff; }
-.step-label { font-size: 13px; font-weight: 500; color: var(--text-dim); white-space: nowrap; }
-.step-item.active .step-label { color: var(--amber); }
-.step-item.done  .step-label  { color: var(--text-muted); }
-main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
-.card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 24px; margin-bottom: 20px;
-  box-shadow: var(--shadow);
-}
-.card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
-.card-icon {
-  width: 40px; height: 40px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 18px; flex-shrink: 0;
-}
-.ci-sleep  { background: var(--sleep-dim);   box-shadow: 0 2px 10px var(--sleep-glow); }
-.ci-flight { background: var(--morning-dim); box-shadow: 0 2px 10px var(--morning-glow); }
-.ci-result { background: var(--amber-dim);   box-shadow: 0 2px 10px var(--amber-glow); }
-.card-title { font-size: 19px; font-weight: 700; color: var(--cream); }
-.card-sub   { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
-.form-grid { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
-@media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
-input[type="time"], input[type="date"], input[type="number"], select {
-  background: var(--card2); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text);
-  font-family: inherit; font-size: 16px; font-weight: 500;
-  padding: 10px 14px; width: 100%; outline: none;
-  transition: border-color .2s, box-shadow .2s;
-  -webkit-appearance: none; appearance: none;
-}
-input:focus, select:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--amber-glow); }
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(.6) sepia(1) hue-rotate(10deg); }
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a89070' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 12px center;
-  padding-right: 34px; cursor: pointer;
-}
-.chronotype-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 4px; }
-@media (max-width: 520px) { .chronotype-grid { grid-template-columns: repeat(2,1fr); } }
-.chrono-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
-  padding: 12px 8px; border: 2px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--card2); cursor: pointer; transition: all .2s;
-  color: var(--text-muted); font-family: inherit;
-}
-.chrono-btn:hover { border-color: var(--amber); color: var(--text); }
-.chrono-btn.selected { border-color: var(--amber); background: var(--amber-dim); color: var(--cream); box-shadow: 0 2px 12px var(--amber-glow); }
-.chrono-btn .icon  { font-size: 22px; }
-.chrono-btn .label { font-size: 11px; font-weight: 600; }
-.chrono-btn .time  { font-size: 10px; color: var(--text-dim); }
-.btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  gap: 8px; border: none; border-radius: var(--radius-sm);
-  cursor: pointer; font-family: inherit; font-weight: 700; transition: all .2s;
-}
-.btn-primary {
-  background: linear-gradient(135deg, var(--amber), var(--amber-dark)); color: #fff;
-  padding: 14px 28px; font-size: 17px; width: 100%;
-  box-shadow: 0 4px 20px var(--amber-glow);
-}
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(232,149,109,.55); }
-.btn-primary:active { transform: translateY(0); }
-.btn-secondary { background: var(--card2); border: 1px solid var(--border); color: var(--text-muted); padding: 10px 20px; font-size: 14px; }
-.btn-secondary:hover { background: var(--border); color: var(--text); }
-.btn-save { background: linear-gradient(135deg, var(--awake), #4aaa80); color: #fff; padding: 12px 22px; font-size: 14px; box-shadow: 0 4px 16px var(--awake-glow); }
-.btn-save:hover { transform: translateY(-1px); }
-.btn-reset { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 12px 22px; font-size: 14px; }
-.btn-reset:hover { border-color: var(--danger); color: var(--danger); }
-.btn-row { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-.hidden { display: none !important; }
-.divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 600;
-}
-.badge-amber { background: var(--amber-dim);   color: var(--accent2); border: 1px solid rgba(232,149,109,.3); }
-.badge-blue  { background: var(--morning-dim); color: #90caf9;        border: 1px solid rgba(79,195,247,.3); }
-.badge-green { background: var(--awake-dim);   color: #a5d6bc;        border: 1px solid rgba(110,198,160,.3); }
-.badge-red   { background: var(--sleep-dim);   color: #e8a0aa;        border: 1px solid rgba(184,92,110,.3); }
-.info-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-.dir-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 99px; font-size: 13px; font-weight: 700; }
-.dir-east { background: rgba(232,149,109,.12); border: 1px solid rgba(232,149,109,.3); color: var(--accent2); }
-.dir-west { background: var(--awake-dim);      border: 1px solid rgba(110,198,160,.3); color: #a5d6bc; }
-.dir-same { background: rgba(110,90,70,.2);    border: 1px solid var(--border);        color: var(--text-muted); }
-.summary-box {
-  background: linear-gradient(135deg, rgba(232,149,109,.1), rgba(212,112,74,.06));
-  border: 1px solid rgba(232,149,109,.25);
-  border-radius: var(--radius-sm); padding: 16px 18px; margin-bottom: 18px;
-}
-.summary-box h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--accent2); }
-.summary-kv { display: flex; flex-wrap: wrap; gap: 8px 20px; }
-.summary-kv dt { font-size: 11px; color: var(--text-dim); }
-.summary-kv dd { font-size: 13px; font-weight: 600; color: var(--cream); margin-top: 1px; }
-.alert {
-  padding: 12px 16px; border-radius: var(--radius-sm);
-  font-size: 13px; font-weight: 500; margin-bottom: 14px;
-  display: flex; align-items: flex-start; gap: 8px;
-}
-.alert-warn { background: rgba(240,165,0,.1);  border: 1px solid rgba(240,165,0,.3);  color: #fde68a; }
-.alert-info { background: var(--morning-dim);  border: 1px solid rgba(79,195,247,.3); color: #90caf9; }
-.day-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; }
-.day-tab {
-  flex-shrink: 0; padding: 7px 16px; border-radius: 99px;
-  border: 1px solid var(--border); background: var(--card2);
-  color: var(--text-muted); font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: all .2s; font-family: inherit;
-}
-.day-tab:hover { border-color: var(--amber); color: var(--text); }
-.day-tab.active { background: var(--amber-dim); border-color: var(--amber); color: var(--accent2); box-shadow: 0 2px 10px var(--amber-glow); }
-.tl-segment {
-  position: absolute; top: 0; height: 100%; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700; overflow: hidden; white-space: nowrap;
-  transition: opacity .2s; cursor: default;
-}
-.tl-segment:hover { opacity: .8; }
-.tl-seg-morning { background: linear-gradient(90deg, #1a6a8a, #4fc3f7); color: #e0f7ff; }
-.tl-seg-sleep   { background: linear-gradient(90deg, var(--sleep-dark), var(--sleep)); color: #ffe0e6; }
-.tl-seg-amber   { background: linear-gradient(90deg, #8a4a00, var(--sunglass)); color: #fff8e0; }
-.schedule-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
-.sched-item {
-  display: flex; align-items: center; gap: 14px;
-  padding: 14px 16px; border-radius: var(--radius-sm);
-  border: 1px solid; transition: transform .15s;
-}
-.sched-item:hover { transform: translateX(3px); }
-.sched-morning  { background: var(--morning-glow); border-color: rgba(79,195,247,.2); }
-.sched-amber    { background: var(--amber-glow);   border-color: rgba(232,149,109,.2); }
-.sched-sleep    { background: var(--sleep-glow);   border-color: rgba(184,92,110,.2); }
-.sched-awake    { background: var(--awake-glow);   border-color: rgba(110,198,160,.2); }
-.sched-sunglass { background: var(--sunglass-glow);border-color: rgba(240,165,0,.2); }
-.sched-icon  { font-size: 24px; flex-shrink: 0; }
-.sched-info  { flex: 1; min-width: 0; }
-.sched-title { font-size: 16px; font-weight: 700; }
-.sched-time  { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; }
-.sched-desc  { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-.sched-day   { font-size: 11px; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
-.morning-color  { color: var(--morning); }
-.amber-color    { color: var(--accent2); }
-.sleep-color    { color: #e8a0aa; }
-.awake-color    { color: var(--awake); }
-.sunglass-color { color: var(--sunglass); }
-.tips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
-@media (max-width: 520px) { .tips-grid { grid-template-columns: 1fr; } }
-.tip-card { background: var(--card2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
-.tip-card .tip-head { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--cream); }
-.tip-card p { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
-.export-card {
-  background: linear-gradient(135deg, rgba(110,198,160,.1), rgba(74,170,128,.06));
-  border: 1px solid rgba(110,198,160,.25);
-  border-radius: var(--radius); padding: 20px 24px; margin-top: 20px;
-}
-.export-card h3 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--awake); }
-.export-card p { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
-#save-card {
-  background: #1a1410; border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 24px;
-  font-family: 'Pretendard', sans-serif; color: var(--text);
-  position: fixed; top: -9999px; left: -9999px; width: 600px; display: none;
-}
-#save-card .sc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 14px; }
-#save-card .sc-logo { width: 38px; height: 38px; background: linear-gradient(135deg, var(--amber), var(--amber-dark)); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-#save-card .sc-title { font-size: 18px; font-weight: 800; color: var(--cream); }
-#save-card .sc-sub   { font-size: 12px; color: var(--text-muted); }
-#toast {
-  position: fixed; bottom: 30px; left: 50%;
-  transform: translateX(-50%) translateY(60px);
-  background: var(--card); border: 1px solid var(--border); color: var(--text);
-  padding: 12px 22px; border-radius: 99px; font-size: 14px; font-weight: 600;
-  box-shadow: var(--shadow); opacity: 0;
-  transition: all .35s cubic-bezier(.34,1.56,.64,1);
-  z-index: 999; pointer-events: none; white-space: nowrap;
-}
-#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-/* 푸터 & 모달 커스텀 스타일 (기존 코드 다크 테마 반영 완료) */
-.service-footer {
-  background-color: var(--card); /* 기존의 깊은 브라운 컬러 연동 */
-  color: var(--text-muted);
-  padding: 40px 20px;
-  font-size: 13px;
-  line-height: 1.6;
-  border-top: 1px solid var(--border);
-  text-align: center;
-  margin-top: 40px;
-}
-.footer-container { max-width: 760px; margin: 0 auto; }
-.company-info { margin-bottom: 8px; color: var(--text-muted); }
-.company-info strong { color: var(--cream); }
-.footer-links { color: var(--border-light); }
-.link-item {
-  color: var(--amber); /* 오렌지/앰버 포인트 컬러 연동 */
-  cursor: pointer;
-  font-weight: 600;
-  margin: 0 6px;
-  transition: color 0.2s;
-}
-.link-item:hover { color: var(--accent2); text-decoration: underline; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Milano & Bellagio Solo Travel Guide</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & Playfair Display -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Leaflet CSS & JS for Interactive Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-/* 팝업 모달창 스타일 */
-.modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.7); /* 더 깊고 어두운 암전 효과 */
-  z-index: 9999;
-  justify-content: center; align-items: center;
-  padding: 16px;
-}
-.modal-content {
-  background: var(--card2); /* 기존 팝업 내부 컬러 연동 */
-  border: 1px solid var(--border);
-  padding: 25px;
-  border-radius: var(--radius);
-  width: 100%; max-width: 500px;
-  max-height: 75vh;
-  overflow-y: auto;
-  position: relative;
-  box-shadow: var(--shadow);
-}
-.modal-close {
-  position: absolute; top: 15px; right: 20px;
-  font-size: 24px; cursor: pointer; color: var(--text-dim);
-}
-.modal-close:hover { color: var(--danger); }
-#modalTitle { color: var(--cream); font-size: 16px; font-weight: 700; margin-bottom: 15px; }
-.modal-text {
-  font-size: 13px; color: var(--text);
-  white-space: pre-wrap; text-align: left; line-height: 1.6;
-}
-</style>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Playfair Display', 'serif'],
+          },
+          colors: {
+            milano: {
+              terracotta: '#C85A32',
+              navy: '#1A2A3A',
+              gold: '#D4AF37',
+              cream: '#FDFBF7',
+              sage: '#4A6B5D'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* iOS Safari Elastic Scroll & Safe Area */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: env(safe-area-inset-bottom);
+      background-color: #F8F9FA;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    #map {
+      height: 260px;
+      width: 100%;
+      border-radius: 1.25rem;
+      z-index: 10;
+    }
+    .leaflet-popup-content-wrapper {
+      border-radius: 1rem;
+      padding: 4px;
+      font-family: 'Inter', sans-serif;
+    }
+    /* Natural Korean Word-break */
+    .break-keep {
+      word-break: keep-all;
+    }
+  </style>
 </head>
-<body>
+<body class="text-slate-800 antialiased selection:bg-amber-200">
 
-<header>
-  <div class="logo-icon">🌙</div>
-  <div>
-    <h1>Luna<span>Sync</span></h1>
-    <p>생체리듬 기반 시차적응 도우미</p>
+  <!-- Toast Notification Modal -->
+  <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-slate-900/90 backdrop-blur-md text-white text-xs px-4 py-2.5 rounded-full shadow-lg transform transition-all duration-300 opacity-0 pointer-events-none flex items-center space-x-2">
+    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toast-text">복사되었습니다</span>
   </div>
-</header>
 
-<div class="steps-bar">
-  <div class="step-item active" id="step-ind-1"><div class="step-num">1</div><div class="step-label">수면 패턴</div></div>
-  <div class="step-item"        id="step-ind-2"><div class="step-num">2</div><div class="step-label">비행 정보</div></div>
-  <div class="step-item"        id="step-ind-3"><div class="step-num">3</div><div class="step-label">결과</div></div>
-</div>
-
-<main>
-
-<!-- STEP 1 -->
-<div id="section-sleep">
-  <div class="card">
-    <div class="card-header">
-      <div class="card-icon ci-sleep">🛏️</div>
+  <!-- Header Section -->
+  <header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 pt-3 pb-2.5">
+    <div class="max-w-md mx-auto flex items-center justify-between">
       <div>
-        <div class="card-title">나의 평소 수면 패턴</div>
-        <div class="card-sub">맞춤형 시차적응 플랜을 만들기 위해 평소 수면 시간을 알려주세요.<br>혹은 희망하는 수면 패턴을 지정하셔도 돼요.</div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="text-[10px] font-semibold tracking-wider text-milano-terracotta uppercase">Milano ➔ Basel ➔ Bern</span>
+        </div>
+        <h1 class="text-lg font-bold tracking-tight text-slate-900 font-serif">밀라노 & 스위스 스마트 가이드</h1>
+      </div>
+      <button onclick="switchTab('spots')" class="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 transition" aria-label="추천 스팟 목록">
+        <i class="fa-solid fa-compass text-base text-milano-terracotta"></i>
+      </button>
+    </div>
+
+    <!-- Dual Real-time World Clock Bar (Milano & Korea) -->
+    <div class="max-w-md mx-auto mt-2 grid grid-cols-2 gap-2 text-xs">
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50/80 p-2 rounded-xl border border-amber-200/80 flex items-center justify-between">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-sm">🇮🇹 🇨🇭</span>
+          <div>
+            <div class="text-[10px] font-bold text-amber-900 uppercase tracking-tight">현지 시간 (유럽)</div>
+            <div id="milan-clock" class="text-xs font-mono font-bold text-slate-900">--:--:--</div>
+          </div>
+        </div>
+        <span class="text-[10px] bg-amber-200/70 text-amber-900 px-1.5 py-0.5 rounded font-mono font-semibold">-7h</span>
+      </div>
+
+      <div class="bg-slate-50 p-2 rounded-xl border border-slate-200/80 flex items-center justify-between">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-sm">🇰🇷</span>
+          <div>
+            <div class="text-[10px] font-bold text-slate-600 uppercase tracking-tight">한국 시간 (KST)</div>
+            <div id="korea-clock" class="text-xs font-mono font-bold text-slate-800">--:--:--</div>
+          </div>
+        </div>
+        <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-mono font-semibold">기준</span>
       </div>
     </div>
-    <div class="form-group" style="margin-bottom:18px;">
-      <label>🦉 크로노타입 (수면 성향)</label>
-      <div class="chronotype-grid" id="chrono-grid">
-        <button class="chrono-btn" data-type="extreme-morning">
-          <span class="icon">🌅</span><span class="label">비즈니스형</span><span class="time">취침 21:00 / 기상 05:00</span>
+
+    <!-- Quick Stats Bar -->
+    <div class="max-w-md mx-auto mt-2 flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 py-1.5 px-3 rounded-xl border border-slate-100">
+      <span class="flex items-center"><i class="fa-solid fa-temperature-three-quarters text-amber-500 mr-1"></i> 현지 8~14°C 쌀쌀</span>
+      <span class="flex items-center"><i class="fa-solid fa-train-subway text-blue-500 mr-1"></i> 밀라노M3 & 바젤카드</span>
+      <span class="flex items-center font-medium text-emerald-600"><i class="fa-solid fa-ticket mr-1"></i> 10/24 15:30 예약</span>
+    </div>
+
+    <!-- Navigation Tabs (Horizontally scrollable on small mobile screens to prevent awkward line breaks) -->
+    <div class="max-w-md mx-auto mt-2.5 overflow-x-auto no-scrollbar py-0.5">
+      <div class="flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-[11px] w-max min-w-full space-x-1">
+        <button id="tab-day1" onclick="selectDay(1)" class="whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all bg-white text-slate-900 shadow-sm">10/24 (밀라노)</button>
+        <button id="tab-day2" onclick="selectDay(2)" class="whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800">10/25 (벨라지오)</button>
+        <button id="tab-day3" onclick="selectDay(3)" class="whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800">10/26 (바젤도착)</button>
+        <button id="tab-swiss" onclick="selectDay('swiss')" class="whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800">🇨🇭 스위스 전체</button>
+        <button id="tab-spots" onclick="switchTab('spots')" class="whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800 flex items-center justify-center">
+          <i class="fa-solid fa-list-check mr-1 text-milano-terracotta"></i>스팟 모아보기
         </button>
-        <button class="chrono-btn" data-type="morning">
-          <span class="icon">☀️</span><span class="label">아침형</span><span class="time">취침 22:30 / 기상 06:30</span>
-        </button>
-        <button class="chrono-btn selected" data-type="neutral">
-          <span class="icon">🌤️</span><span class="label">일반형</span><span class="time">취침 23:30 / 기상 07:30</span>
-        </button>
-        <button class="chrono-btn" data-type="evening">
-          <span class="icon">🌙</span><span class="label">저녁형</span><span class="time">취침 01:00 / 기상 09:00</span>
-        </button>
       </div>
     </div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>😴 평소 취침 시간</label>
-        <input type="time" id="sleep-bed" value="23:30" />
-      </div>
-      <div class="form-group">
-        <label>⏰ 평소 기상 시간</label>
-        <input type="time" id="sleep-wake" value="07:30" />
-      </div>
+  </header>
+
+<!-- Main Container -->
+<main class="max-w-md mx-auto px-4 py-4 space-y-4">
+
+  <!-- Interactive Leaflet Map Box -->
+  <section class="bg-white p-3 rounded-2xl shadow-sm border border-slate-200/90 relative">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center">
+        <i class="fa-solid fa-map-location-dot text-milano-terracotta mr-1.5"></i> 인터랙티브 스마트 지도
+      </h2>
+      <span id="map-counter" class="text-[11px] font-medium bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">동선 연동</span>
     </div>
-    <div class="divider"></div>
-    <div class="form-grid">
-      <div class="form-group">
-        <label>💤 평균 수면 시간 (시간)</label>
-        <input type="number" id="sleep-hours" value="8" min="4" max="12" step="0.5" />
-      </div>
-      <div class="form-group">
-        <label>🌙 수면의 질 자가 평가</label>
-        <select id="sleep-quality">
-          <option value="good">좋음 (쉽게 잠들고 잘 잠)</option>
-          <option value="medium" selected>보통 (가끔 뒤척임)</option>
-          <option value="bad">나쁨 (잠들기 어려움)</option>
-        </select>
-      </div>
+    <div id="map" class="shadow-inner"></div>
+    <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500 break-keep">
+      <span>📍 붉은색: 주요 거점·예약지</span>
+      <span>🔵 파란색: 공원·헬스·산책</span>
     </div>
-    <div style="margin-top:20px;">
-      <button class="btn btn-primary" id="btn-to-step2">✈️ 다음: 비행 정보 입력</button>
-    </div>
+  </section>
+
+  <!-- ITINERARY VIEW (Dynamic Day Tabs) -->
+  <div id="itinerary-container" class="space-y-4">
+    <!-- Injected by JavaScript -->
   </div>
-</div>
 
-<!-- STEP 2 -->
-<div id="section-flight" class="hidden">
-  <div class="card">
-    <div class="card-header">
-      <div class="card-icon ci-flight">✈️</div>
-      <div>
-        <div class="card-title">비행 정보 입력</div>
-        <div class="card-sub">출발지, 목적지, 이륙 및 착륙 시간을 입력하세요</div>
+  <!-- 8 CURATED ESSENTIAL CATEGORIES (Tab Content) -->
+  <div id="spots-container" class="hidden space-y-3">
+    <!-- Injected by JavaScript -->
+  </div>
+
+  <!-- Jet Lag Bio-Rhythm & Sleep Routine Section -->
+  <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90 space-y-3 break-keep">
+    <div class="flex items-center justify-between">
+      <h3 class="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center">
+        <i class="fa-solid fa-brain text-purple-600 mr-1.5"></i> 출장 & 여행 생체리듬 실전 가이드 (-7시간)
+      </h3>
+      <span class="text-[10px] bg-purple-50 text-purple-700 font-bold px-2 py-0.5 rounded-full border border-purple-200">비즈니스 컨디션</span>
+    </div>
+
+    <p class="text-xs text-slate-600 leading-relaxed break-keep">
+      밀라노 관광 후 스위스 회사 일정으로 이어지는 황금 동선에서 피로 누적과 수면 장애를 방지하는 3대 수칙입니다.
+    </p>
+
+    <div class="space-y-2 text-xs">
+      <!-- 10/26 Basel Arrival Protocol -->
+      <div class="p-3 rounded-xl bg-purple-50/60 border border-purple-100 space-y-1">
+        <div class="flex items-center justify-between font-semibold text-purple-950">
+          <span class="flex items-center"><i class="fa-solid fa-hotel mr-1.5 text-purple-600"></i> 10/26(월) 바젤 도착 후 13:00~17:00 골든타임</span>
+          <span class="text-[10px] bg-white px-1.5 py-0.5 rounded text-purple-700 border border-purple-200 font-mono shrink-0">리셉션 대비</span>
+        </div>
+        <p class="text-slate-600 leading-relaxed break-keep">
+          12:26 도착 후 호텔에 짐을 맡기고 <strong>절대 침대에 눕지 마세요.</strong> 호텔 헬스장에서 30분 가벼운 유산소/스트레칭을 하거나, 라인강 산책로에서 <strong>자연광</strong>을 쬐어 도파민을 분비시켜야 18:00 회사 리셉션 디너 때 졸지 않고 생생한 컨디션을 유지합니다.
+        </p>
+      </div>
+
+      <!-- Business Week Protocol -->
+      <div class="p-3 rounded-xl bg-amber-50/60 border border-amber-100 space-y-1">
+        <div class="flex items-center justify-between font-semibold text-amber-950">
+          <span class="flex items-center"><i class="fa-solid fa-briefcase mr-1.5 text-amber-600"></i> 화~금 출장 중 저녁 알코올 섭취 주의</span>
+          <span class="text-[10px] bg-white px-1.5 py-0.5 rounded text-amber-800 border border-amber-200 font-mono shrink-0">수면 질 유지</span>
+        </div>
+        <p class="text-slate-600 leading-relaxed break-keep">
+          스위스 와인/맥주 과음은 새벽 3~4시 이른 각성(렘수면 분절)을 유발합니다. 저녁에는 물을 자주 드시고 23:00 취침 루틴을 지켜주세요.
+        </p>
+      </div>
+
+      <!-- Weekend Bern to Zurich Protocol -->
+      <div class="p-3 rounded-xl bg-blue-50/60 border border-blue-100 space-y-1">
+        <div class="flex items-center justify-between font-semibold text-blue-950">
+          <span class="flex items-center"><i class="fa-solid fa-plane-departure mr-1.5 text-blue-600"></i> 토요일 베른 ➔ 취리히 공항 (17:30 출국) 동선</span>
+          <span class="text-[10px] bg-white px-1.5 py-0.5 rounded text-blue-700 border border-blue-200 font-mono shrink-0">출국 데드라인</span>
+        </div>
+        <p class="text-slate-600 leading-relaxed break-keep">
+          베른역에서 취리히 공항역(Zürich Flughafen)까지 환승 없이 <strong>기차로 직행 1시간 15분</strong>입니다. 17:30 출발편이므로 늦어도 <strong>15:00까지는 공항역 도착</strong> 필수 (베른역에서 13:30~13:40 이전 열차 탑승).
+        </p>
       </div>
     </div>
-    <div class="form-grid">
-      <div class="form-group" style="position: relative;">
-        <label>🛫 출발 국가</label>
-        <select id="origin-country" style="padding-right: 50px;">
-          <option value="KR">🇰🇷 대한민국 (UTC+9)</option>
-          <option value="JP">🇯🇵 일본 (UTC+9)</option>
-          <option value="CN">🇨🇳 중국 (UTC+8)</option>
-          <option value="TW">🇹🇼 대만 (UTC+8)</option>
-          <option value="HK">🇭🇰 홍콩 (UTC+8)</option>
-          <option value="TH">🇹🇭 태국 (UTC+7)</option>
-          <option value="VN">🇻🇳 베트남 (UTC+7)</option>
-          <option value="SG">🇸🇬 싱가포르 (UTC+8)</option>
-          <option value="MY">🇲🇾 말레이시아 (UTC+8)</option>
-          <option value="PH">🇵🇭 필리핀 (UTC+8)</option>
-          <option value="ID">🇮🇩 인도네시아 자카르타 (UTC+7)</option>
-          <option value="IN">🇮🇳 인도 (UTC+5:30)</option>
-          <option value="AE">🇦🇪 UAE (UTC+4)</option>
-          <option value="TR">🇹🇷 터키 (UTC+3)</option>
-          <option value="RU_MOW">🇷🇺 러시아 모스크바 (UTC+3)</option>
-          <option value="EG">🇪🇬 이집트 (UTC+2)</option>
-          <option value="KE">🇰🇪 케냐 (UTC+3)</option>
-          <option value="GR">🇬🇷 그리스 (UTC+2)</option>
-          <option value="DE">🇩🇪 독일 (UTC+1)</option>
-          <option value="FR">🇫🇷 프랑스 (UTC+1)</option>
-          <option value="IT">🇮🇹 이탈리아 (UTC+1)</option>
-          <option value="ES">🇪🇸 스페인 (UTC+1)</option>
-          <option value="NL">🇳🇱 네덜란드 (UTC+1)</option>
-          <option value="CH">🇨🇭 스위스 (UTC+1)</option>
-          <option value="AT">🇦🇹 오스트리아 (UTC+1)</option>
-          <option value="BE">🇧🇪 벨기에 (UTC+1)</option>
-          <option value="PL">🇵🇱 폴란드 (UTC+1)</option>
-          <option value="SE">🇸🇪 스웨덴 (UTC+1)</option>
-          <option value="NO">🇳🇴 노르웨이 (UTC+1)</option>
-          <option value="DK">🇩🇰 덴마크 (UTC+1)</option>
-          <option value="FI">🇫🇮 핀란드 (UTC+2)</option>
-          <option value="GB">🇬🇧 영국 (UTC+0)</option>
-          <option value="PT">🇵🇹 포르투갈 (UTC+0)</option>
-          <option value="IE">🇮🇪 아일랜드 (UTC+0)</option>
-          <option value="IS">🇮🇸 아이슬란드 (UTC+0)</option>
-          <option value="US_ET">🇺🇸 미국 동부 (ET, UTC-5)</option>
-          <option value="US_CT">🇺🇸 미국 중부 (CT, UTC-6)</option>
-          <option value="US_MT">🇺🇸 미국 산악 (MT, UTC-7)</option>
-          <option value="US_PT">🇺🇸 미국 태평양 (PT, UTC-8)</option>
-          <option value="US_AK">🇺🇸 미국 알래스카 (UTC-9)</option>
-          <option value="US_HI">🇺🇸 미국 하와이 (UTC-10)</option>
-          <option value="CA_ET">🇨🇦 캐나다 동부 (UTC-5)</option>
-          <option value="CA_PT">🇨🇦 캐나다 서부 (UTC-8)</option>
-          <option value="MX">🇲🇽 멕시코 (UTC-6)</option>
-          <option value="BR_E">🇧🇷 브라질 (UTC-3)</option>
-          <option value="AR">🇦🇷 아르헨티나 (UTC-3)</option>
-          <option value="AU_SYD">🇦🇺 호주 시드니 (UTC+10)</option>
-          <option value="AU_PER">🇦🇺 호주 퍼스 (UTC+8)</option>
-          <option value="NZ">🇳🇿 뉴질랜드 (UTC+12)</option>
-          <option value="ZA">🇿🇦 남아공 (UTC+2)</option>
-        </select>
-     <button type="button" id="switchBtn" onclick="switchLocations()" 
-            style="position: absolute; right: 0; top: 25px; width: 35px; height: 41px; border-radius: 0 5px 5px 0; cursor: pointer;">
-      ⇄
+  </section>
+
+  <!-- Quick Action / Copy Plan Bar -->
+  <section class="bg-slate-100 p-3 rounded-2xl flex items-center justify-between">
+    <div class="text-xs text-slate-600 font-medium">
+      <i class="fa-regular fa-clipboard mr-1 text-slate-500"></i> 밀라노 & 스위스 통합 일정 요약
+    </div>
+    <button onclick="copyItinerarySummary()" class="px-3.5 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition active:scale-95 shadow-sm">
+      전체 복사
     </button>
-  </div>
-      <div class="form-group">
-        <label>🛬 도착 국가 / 지역</label>
-        <select id="dest-country">
-          <optgroup label="🌏 아시아">
-            <option value="KR">🇰🇷 대한민국 (UTC+9)</option>
-            <option value="JP">🇯🇵 일본 (UTC+9)</option>
-            <option value="CN">🇨🇳 중국 (UTC+8)</option>
-            <option value="TW">🇹🇼 대만 (UTC+8)</option>
-            <option value="HK">🇭🇰 홍콩 (UTC+8)</option>
-            <option value="TH">🇹🇭 태국 (UTC+7)</option>
-            <option value="VN">🇻🇳 베트남 (UTC+7)</option>
-            <option value="SG">🇸🇬 싱가포르 (UTC+8)</option>
-            <option value="MY">🇲🇾 말레이시아 (UTC+8)</option>
-            <option value="PH">🇵🇭 필리핀 (UTC+8)</option>
-            <option value="ID">🇮🇩 인도네시아 자카르타 (UTC+7)</option>
-            <option value="ID_E">🇮🇩 인도네시아 발리 (UTC+8)</option>
-            <option value="ID_EE">🇮🇩 인도네시아 자야푸라 (UTC+9)</option>
-            <option value="KH">🇰🇭 캄보디아 (UTC+7)</option>
-            <option value="MM">🇲🇲 미얀마 (UTC+6:30)</option>
-            <option value="LA">🇱🇦 라오스 (UTC+7)</option>
-            <option value="MN">🇲🇳 몽골 (UTC+8)</option>
-            <option value="IN">🇮🇳 인도 (UTC+5:30)</option>
-            <option value="LK">🇱🇰 스리랑카 (UTC+5:30)</option>
-            <option value="BD">🇧🇩 방글라데시 (UTC+6)</option>
-            <option value="NP">🇳🇵 네팔 (UTC+5:45)</option>
-            <option value="PK">🇵🇰 파키스탄 (UTC+5)</option>
-            <option value="UZ">🇺🇿 우즈베키스탄 (UTC+5)</option>
-            <option value="KZ">🇰🇿 카자흐스탄 (UTC+6)</option>
-          </optgroup>
-          <optgroup label="🕌 중동">
-            <option value="AE">🇦🇪 UAE (UTC+4)</option>
-            <option value="SA">🇸🇦 사우디아라비아 (UTC+3)</option>
-            <option value="QA">🇶🇦 카타르 (UTC+3)</option>
-            <option value="KW">🇰🇼 쿠웨이트 (UTC+3)</option>
-            <option value="BH">🇧🇭 바레인 (UTC+3)</option>
-            <option value="OM">🇴🇲 오만 (UTC+4)</option>
-            <option value="IL">🇮🇱 이스라엘 (UTC+2)</option>
-            <option value="JO">🇯🇴 요르단 (UTC+3)</option>
-            <option value="TR">🇹🇷 터키 (UTC+3)</option>
-            <option value="IR">🇮🇷 이란 (UTC+3:30)</option>
-          </optgroup>
-          <optgroup label="🏰 유럽">
-            <option value="GB">🇬🇧 영국 (UTC+0)</option>
-            <option value="PT">🇵🇹 포르투갈 (UTC+0)</option>
-            <option value="IE">🇮🇪 아일랜드 (UTC+0)</option>
-            <option value="IS">🇮🇸 아이슬란드 (UTC+0)</option>
-            <option value="FR">🇫🇷 프랑스 (UTC+1)</option>
-            <option value="DE">🇩🇪 독일 (UTC+1)</option>
-            <option value="IT">🇮🇹 이탈리아 (UTC+1)</option>
-            <option value="ES">🇪🇸 스페인 (UTC+1)</option>
-            <option value="NL">🇳🇱 네덜란드 (UTC+1)</option>
-            <option value="BE">🇧🇪 벨기에 (UTC+1)</option>
-            <option value="CH">🇨🇭 스위스 (UTC+1)</option>
-            <option value="AT">🇦🇹 오스트리아 (UTC+1)</option>
-            <option value="PL">🇵🇱 폴란드 (UTC+1)</option>
-            <option value="CZ">🇨🇿 체코 (UTC+1)</option>
-            <option value="HU">🇭🇺 헝가리 (UTC+1)</option>
-            <option value="HR">🇭🇷 크로아티아 (UTC+1)</option>
-            <option value="SE">🇸🇪 스웨덴 (UTC+1)</option>
-            <option value="NO">🇳🇴 노르웨이 (UTC+1)</option>
-            <option value="DK">🇩🇰 덴마크 (UTC+1)</option>
-            <option value="FI">🇫🇮 핀란드 (UTC+2)</option>
-            <option value="EE">🇪🇪 에스토니아 (UTC+2)</option>
-            <option value="LV">🇱🇻 라트비아 (UTC+2)</option>
-            <option value="LT">🇱🇹 리투아니아 (UTC+2)</option>
-            <option value="GR">🇬🇷 그리스 (UTC+2)</option>
-            <option value="RO">🇷🇴 루마니아 (UTC+2)</option>
-            <option value="BG">🇧🇬 불가리아 (UTC+2)</option>
-            <option value="UA">🇺🇦 우크라이나 (UTC+2)</option>
-            <option value="RU_MOW">🇷🇺 러시아 모스크바 (UTC+3)</option>
-            <option value="RU_EKA">🇷🇺 러시아 예카테린부르크 (UTC+5)</option>
-            <option value="RU_KRA">🇷🇺 러시아 크라스노야르스크 (UTC+7)</option>
-            <option value="RU_IRK">🇷🇺 러시아 이르쿠츠크 (UTC+8)</option>
-            <option value="RU_VLA">🇷🇺 러시아 블라디보스토크 (UTC+10)</option>
-          </optgroup>
-          <optgroup label="🌍 아프리카">
-            <option value="EG">🇪🇬 이집트 (UTC+2)</option>
-            <option value="ZA">🇿🇦 남아공 (UTC+2)</option>
-            <option value="KE">🇰🇪 케냐 (UTC+3)</option>
-            <option value="ET">🇪🇹 에티오피아 (UTC+3)</option>
-            <option value="NG">🇳🇬 나이지리아 (UTC+1)</option>
-            <option value="GH">🇬🇭 가나 (UTC+0)</option>
-            <option value="MA">🇲🇦 모로코 (UTC+1)</option>
-            <option value="TN">🇹🇳 튀니지 (UTC+1)</option>
-            <option value="TZ">🇹🇿 탄자니아 (UTC+3)</option>
-          </optgroup>
-          <optgroup label="🗽 미국">
-            <option value="US_ET_NY">🇺🇸 뉴욕 (ET, UTC-5)</option>
-            <option value="US_ET_FL">🇺🇸 플로리다 마이애미 (ET, UTC-5)</option>
-            <option value="US_ET_MA">🇺🇸 보스턴 (ET, UTC-5)</option>
-            <option value="US_ET_GA">🇺🇸 애틀랜타 (ET, UTC-5)</option>
-            <option value="US_ET_PA">🇺🇸 필라델피아 (ET, UTC-5)</option>
-            <option value="US_ET_OH">🇺🇸 오하이오 (ET, UTC-5)</option>
-            <option value="US_ET_NC">🇺🇸 노스캐롤라이나 (ET, UTC-5)</option>
-            <option value="US_ET_VA">🇺🇸 버지니아 (ET, UTC-5)</option>
-            <option value="US_ET_NJ">🇺🇸 뉴저지 (ET, UTC-5)</option>
-            <option value="US_ET_MI">🇺🇸 미시간 (ET, UTC-5)</option>
-            <option value="US_ET_DC">🇺🇸 워싱턴 D.C. (ET, UTC-5)</option>
-            <option value="US_CT_IL">🇺🇸 시카고 (CT, UTC-6)</option>
-            <option value="US_CT_TX">🇺🇸 텍사스 (CT, UTC-6)</option>
-            <option value="US_CT_MN">🇺🇸 미네소타 (CT, UTC-6)</option>
-            <option value="US_CT_MO">🇺🇸 미주리 (CT, UTC-6)</option>
-            <option value="US_CT_LA">🇺🇸 루이지애나 (CT, UTC-6)</option>
-            <option value="US_MT_CO">🇺🇸 덴버 (MT, UTC-7)</option>
-            <option value="US_MT_AZ">🇺🇸 피닉스 (MST, UTC-7)</option>
-            <option value="US_MT_UT">🇺🇸 솔트레이크시티 (MT, UTC-7)</option>
-            <option value="US_PT_CA">🇺🇸 LA/샌프란시스코 (PT, UTC-8)</option>
-            <option value="US_PT_WA">🇺🇸 시애틀 (PT, UTC-8)</option>
-            <option value="US_PT_OR">🇺🇸 포틀랜드 (PT, UTC-8)</option>
-            <option value="US_AK">🇺🇸 알래스카 (UTC-9)</option>
-            <option value="US_HI">🇺🇸 하와이 (UTC-10)</option>
-          </optgroup>
-          <optgroup label="🍁 캐나다">
-            <option value="CA_ET">🇨🇦 토론토/오타와 (ET, UTC-5)</option>
-            <option value="CA_CT">🇨🇦 위니펙 (CT, UTC-6)</option>
-            <option value="CA_MT">🇨🇦 캘거리 (MT, UTC-7)</option>
-            <option value="CA_PT">🇨🇦 밴쿠버 (PT, UTC-8)</option>
-          </optgroup>
-          <optgroup label="🌎 중남미">
-            <option value="MX">🇲🇽 멕시코시티 (UTC-6)</option>
-            <option value="BR_E">🇧🇷 브라질 상파울루 (UTC-3)</option>
-            <option value="BR_W">🇧🇷 브라질 마나우스 (UTC-4)</option>
-            <option value="AR">🇦🇷 아르헨티나 (UTC-3)</option>
-            <option value="CL">🇨🇱 칠레 (UTC-4)</option>
-            <option value="CO">🇨🇴 콜롬비아 (UTC-5)</option>
-            <option value="PE">🇵🇪 페루 (UTC-5)</option>
-          </optgroup>
-          <optgroup label="🦘 오세아니아">
-            <option value="AU_SYD">🇦🇺 호주 시드니/멜버른 (UTC+10)</option>
-            <option value="AU_BRI">🇦🇺 호주 브리즈번 (UTC+10)</option>
-            <option value="AU_ADL">🇦🇺 호주 애들레이드 (UTC+9:30)</option>
-            <option value="AU_PER">🇦🇺 호주 퍼스 (UTC+8)</option>
-            <option value="NZ">🇳🇿 뉴질랜드 (UTC+12)</option>
-            <option value="GU">🇬🇺 괌 (UTC+10)</option>
-          </optgroup>
-        </select>
-      </div>
-    </div>
-    <div class="form-grid" style="margin-top:14px;">
-      <div class="form-group">
-        <label>📅 이륙 날짜</label>
-        <input type="date" id="takeoff-date" />
-      </div>
-      <div class="form-group">
-        <label>🕐 이륙 시간 (출발지 현지)</label>
-        <input type="time" id="takeoff-time" value="10:00" />
-      </div>
-    </div>
-    <div class="form-grid" style="margin-top:14px;">
-      <div class="form-group">
-        <label>📅 착륙 날짜 (도착지 현지)</label>
-        <input type="date" id="landing-date" />
-      </div>
-      <div class="form-group">
-        <label>🕑 착륙 시간 (도착지 현지)</label>
-        <input type="time" id="landing-time" value="14:00" />
-      </div>
-    </div>
-    <div class="btn-row" style="margin-top:20px;">
-      <button class="btn btn-secondary" id="btn-back-step1">← 이전</button>
-      <button class="btn btn-primary" style="flex:1;" id="btn-calc">🔍 시차적응 플랜 생성</button>
-    </div>
-  </div>
-</div>
-
-<!-- STEP 3 -->
-<div id="section-result" class="hidden">
-  <div id="result-area"></div>
-  <div class="export-card" id="export-card">
-    <h3>📲 오프라인 저장</h3>
-    <p>오프라인 환경에서도 확인할 수 있도록 일정표를 이미지로 저장하세요.</p>
-    <div class="btn-row">
-      <button class="btn btn-save" id="btn-save-img">📷 이미지로 저장</button>
-      <button class="btn btn-reset" id="btn-reset">🔄 처음부터 다시</button>
-    </div>
-  </div>
-</div>
+  </section>
 
 </main>
 
-<div id="save-card">
-  <div class="sc-header">
-    <div class="sc-logo">🌙</div>
-    <div>
-      <div class="sc-title">LunaSync 시차적응 플랜</div>
-      <div class="sc-sub" id="sc-subtitle"></div>
-    </div>
-  </div>
-  <div id="sc-body"></div>
-</div>
-
-<div id="toast"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-/* ═══════════════════════════════════════════════
-   TZ DATA  (분 단위, UTC 기준 오프셋)
-═══════════════════════════════════════════════ */
-var TZ = {
-  KR: 540, JP: 540, CN: 480, TW: 480, HK: 480,
-  TH: 420, VN: 420, SG: 480, MY: 480, PH: 480,
-  ID: 420, ID_E: 480, ID_EE: 540,
-  KH: 420, MM: 390, LA: 420, MN: 480,
-  IN: 330, LK: 330, BD: 360, NP: 345, PK: 300, UZ: 300, KZ: 360,
-  AE: 240, SA: 180, QA: 180, KW: 180, BH: 180,
-  OM: 240, IL: 120, JO: 180, TR: 180, IR: 210,
-  GB: 0, PT: 0, IE: 0, IS: 0,
-  FR: 60, DE: 60, IT: 60, ES: 60, NL: 60, BE: 60, CH: 60, AT: 60,
-  PL: 60, CZ: 60, HU: 60, HR: 60, SE: 60, NO: 60, DK: 60,
-  FI: 120, EE: 120, LV: 120, LT: 120, GR: 120, RO: 120, BG: 120, UA: 120,
-  RU_MOW: 180, RU_EKA: 300, RU_KRA: 420, RU_IRK: 480, RU_VLA: 600,
-  EG: 120, ZA: 120, KE: 180, ET: 180, NG: 60, GH: 0, MA: 60, TN: 60, TZ: 180,
-  US_ET: -300, US_ET_NY: -300, US_ET_FL: -300, US_ET_MA: -300, US_ET_GA: -300,
-  US_ET_PA: -300, US_ET_OH: -300, US_ET_NC: -300, US_ET_VA: -300, US_ET_NJ: -300,
-  US_ET_MI: -300, US_ET_DC: -300,
-  US_CT: -360, US_CT_IL: -360, US_CT_TX: -360, US_CT_MN: -360, US_CT_MO: -360,
-  US_CT_LA: -360,
-  US_MT: -420, US_MT_CO: -420, US_MT_AZ: -420, US_MT_UT: -420,
-  US_PT: -480, US_PT_CA: -480, US_PT_WA: -480, US_PT_OR: -480,
-  US_AK: -540, US_HI: -600,
-  CA_ET: -300, CA_CT: -360, CA_MT: -420, CA_PT: -480,
-  MX: -360, BR_E: -180, BR_W: -240, AR: -180, CL: -240, CO: -300, PE: -300,
-  AU_SYD: 600, AU_BRI: 600, AU_ADL: 570, AU_PER: 480, AU_DAR: 570,
-  NZ: 720, GU: 600, PG: 600
-};
+  // --- Enhanced Places Data with Precise Coordinates ---
+  const placesData = [
+    {
+      id: "crocetta",
+      name: "밀라노 크로체타 역 (밀라노 숙소)",
+      category: "밀라노 거점",
+      lat: 45.4566,
+      lng: 9.1953,
+      desc: "밀라노 대성당까지 도보 12분, M3 노란 라인 역. 중앙역까지 12분 직통.",
+      tip: "조용하고 치안이 우수한 고급 주거지입니다."
+    },
+    {
+      id: "guastalla",
+      name: "과스탈라 정원 (Giardini della Guastalla)",
+      category: "밀라노 고즈넉한 공원",
+      lat: 45.4597,
+      lng: 9.1983,
+      desc: "1555년 조성된 밀라노 최고(最古)의 정원 중 하나. 연못과 벤치가 있어 커피 한 잔과 쉬어가기 최적.",
+      tip: "크로체타역 도보 5분 거리. 무료 입장."
+    },
+    {
+      id: "lastsupper",
+      name: "최후의 만찬 (산타 마리아 델레 그라치에)",
+      category: "10/24 15:30 예약",
+      lat: 45.4660,
+      lng: 9.1710,
+      desc: "레오나르도 다빈치의 걸작. 15:30 입장(15:00까지 매표소 티켓 교환 필수).",
+      tip: "여권 원본 지참 필수! 관람 시간 15분 엄수."
+    },
+    {
+      id: "rinascente",
+      name: "리나센테 루프탑 & 두오모 뷰",
+      category: "무료 뷰 & 전망",
+      lat: 45.4651,
+      lng: 9.1932,
+      desc: "두오모 고딕 첨탑을 바로 눈앞에서 무료로 볼 수 있는 7층 푸드홀 테라스.",
+      tip: "야외 테라스 난간 쪽에서 두오모 인증샷 최고."
+    },
+    {
+      id: "bam_park",
+      name: "BAM 공원 & 보스코 베르티칼레",
+      category: "모던 뷰 & 공원",
+      lat: 45.4852,
+      lng: 9.1914,
+      desc: "수직 숲(Bosco Verticale) 아파트와 미래형 마천루가 펼쳐지는 혁신 지구.",
+      tip: "중앙역 인근으로 벨라지오 다녀와서 들르기 좋습니다."
+    },
+    {
+      id: "marchesi",
+      name: "마르케시 1824 (Marchesi 1824)",
+      category: "200년 전통 에스프레소바",
+      lat: 45.4655,
+      lng: 9.1818,
+      desc: "1824년 오픈한 프라다 그룹의 유서 깊은 카페.",
+      tip: "바(Banco)에서 서서 마시면 품격 있는 에스프레소가 약 €1.50 내외."
+    },
+    {
+      id: "luini",
+      name: "루이니 (Luini) 판제로티",
+      category: "SNS & 명물 튀김빵",
+      lat: 45.4659,
+      lng: 9.1927,
+      desc: "1888년부터 시작된 겉바속촉 튀김빵. 갓 튀긴 모짜렐라+토마토 판제로티 강추.",
+      tip: "줄이 길어도 회전율이 빨라 5~10분이면 수령 가능합니다."
+    },
+    {
+      id: "navigli",
+      name: "나빌리 운하 (Navigli)",
+      category: "저녁 바 & 아페리티보",
+      lat: 45.4516,
+      lng: 9.1755,
+      desc: "다빈치가 설계한 운하를 따라 늘어선 노천 테라스 펍과 석양 뷰.",
+      tip: "스프리츠 칵테일 한 잔 주문 시 핑거푸드 함께 제공."
+    },
+    {
+      id: "centrale",
+      name: "밀라노 첸트랄레 역",
+      category: "기차 환승 거점",
+      lat: 45.4859,
+      lng: 9.2046,
+      desc: "10/25 벨라지오행(08:20) 및 10/26 바젤행(08:10) 기차 출발지.",
+      tip: "플랫폼이 2층에 있으므로 최소 25분 전 도착 권장."
+    },
+    // --- Swiss Spots (Corrected Coordinates) ---
+    {
+      id: "basel_marriott",
+      name: "바젤 메리어트 호텔 (Messeplatz 25)",
+      category: "🇨🇭 바젤 숙소 거점",
+      lat: 47.5647,
+      lng: 7.6006,
+      desc: "메세플라츠 전시장 앞 4성급 최신 호텔. 최신 테크노짐 피트니스와 사우나 완비.",
+      tip: "체크인 시 바젤 시내 트램/버스를 무제한 무료 탑승하는 'BaselCard'가 발급됩니다!"
+    },
+    {
+      id: "rhine_river",
+      name: "라인강 산책로 & 미틀레레 다리",
+      category: "🇨🇭 뷰 좋은 힐링 산책로",
+      lat: 47.5604,
+      lng: 7.5888,
+      desc: "호텔 도보 7분. 1226년 역사적 다리와 바젤 대성당(Münster)을 감상하는 강변 코스.",
+      tip: "무동력 전통 나룻배 '페리(Fähri, CHF 1.6~2)'를 타고 강을 건너보세요."
+    },
+    {
+      id: "coop_claraplatz",
+      name: "Coop 클라라플라츠 (슈퍼마켓)",
+      category: "🇨🇭 스위스 대형 슈퍼",
+      lat: 47.5623,
+      lng: 7.5947,
+      desc: "호텔 도보 4분 거리 대형 쿱(Coop). 스위스 초콜릿, 치즈, 로스티 간편식 구매.",
+      tip: "스위스 외식 물가가 높으므로 Coop의 신선 식품과 음료 구매에 매우 유용합니다."
+    },
+    {
+      id: "bern_altstadt",
+      name: "베른 구시가지 & 시계탑 (Zytglogge)",
+      category: "🇨🇭 금요일 저녁 나들이",
+      lat: 46.9479,
+      lng: 7.4478,
+      desc: "유네스코 세계문화유산인 중세 아케이드 거리와 천문 시계탑.",
+      tip: "비가 와도 회랑 천장 아래로 우산 없이 편안하게 걸을 수 있습니다."
+    },
+    {
+      id: "bern_rosengarten",
+      name: "베른 장미공원 (Rosengarten)",
+      category: "🇨🇭 베른 최고의 파노라마 뷰",
+      lat: 46.9515,
+      lng: 7.4611,
+      desc: "아레(Aare)강이 굽이쳐 흐르는 베른 구시가지 전체 전경을 감상할 수 있는 전망 명소.",
+      tip: "동료들과 저녁 식사 전 노을과 야경을 즐기기에 환상적인 뷰 포인트입니다."
+    },
+    {
+      id: "zurich_airport",
+      name: "취리히 공항 (ZRH)",
+      category: "🇨🇭 10/31(토) 17:30 출국",
+      lat: 47.4582,
+      lng: 8.5555,
+      desc: "스위스 최대 국제공항. 베른역에서 직통 기차로 약 1시간 15분 소요.",
+      tip: "17:30 항공편 기준 15:00까지 도착 권장. 공항 내 복합몰 'The Circle' 쇼핑 가능."
+    }
+  ];
 
-var COUNTRY_NAMES = {
-  KR:"대한민국",JP:"일본",CN:"중국",TW:"대만",HK:"홍콩",
-  TH:"태국",VN:"베트남",SG:"싱가포르",MY:"말레이시아",PH:"필리핀",
-  ID:"인도네시아(자카르타)",ID_E:"인도네시아(발리)",ID_EE:"인도네시아(자야푸라)",
-  KH:"캄보디아",MM:"미얀마",LA:"라오스",MN:"몽골",
-  IN:"인도",LK:"스리랑카",BD:"방글라데시",NP:"네팔",PK:"파키스탄",
-  UZ:"우즈베키스탄",KZ:"카자흐스탄",
-  AE:"UAE",SA:"사우디아라비아",QA:"카타르",KW:"쿠웨이트",BH:"바레인",
-  OM:"오만",IL:"이스라엘",JO:"요르단",TR:"터키",IR:"이란",
-  GB:"영국",PT:"포르투갈",IE:"아일랜드",IS:"아이슬란드",
-  FR:"프랑스",DE:"독일",IT:"이탈리아",ES:"스페인",NL:"네덜란드",
-  BE:"벨기에",CH:"스위스",AT:"오스트리아",PL:"폴란드",CZ:"체코",
-  HU:"헝가리",HR:"크로아티아",SE:"스웨덴",NO:"노르웨이",DK:"덴마크",
-  FI:"핀란드",EE:"에스토니아",LV:"라트비아",LT:"리투아니아",
-  GR:"그리스",RO:"루마니아",BG:"불가리아",UA:"우크라이나",
-  RU_MOW:"러시아(모스크바)",RU_EKA:"러시아(예카테린부르크)",
-  RU_KRA:"러시아(크라스노야르스크)",RU_IRK:"러시아(이르쿠츠크)",
-  RU_VLA:"러시아(블라디보스토크)",
-  EG:"이집트",ZA:"남아공",KE:"케냐",ET:"에티오피아",
-  NG:"나이지리아",GH:"가나",MA:"모로코",TN:"튀니지",TZ:"탄자니아",
-  US_ET_NY:"미국 뉴욕",US_ET_FL:"미국 플로리다",US_ET_MA:"미국 보스턴",
-  US_ET_GA:"미국 애틀랜타",US_ET_PA:"미국 필라델피아",
-  US_ET_OH:"미국 오하이오",US_ET_NC:"미국 노스캐롤라이나",
-  US_ET_VA:"미국 버지니아",US_ET_NJ:"미국 뉴저지",
-  US_ET_MI:"미국 미시간",US_ET_DC:"미국 워싱턴 D.C.",
-  US_CT_IL:"미국 시카고",US_CT_TX:"미국 텍사스",
-  US_CT_MN:"미국 미네소타",US_CT_MO:"미국 미주리",
-  US_CT_LA:"미국 루이지애나",
-  US_MT_CO:"미국 덴버",US_MT_AZ:"미국 피닉스",US_MT_UT:"미국 솔트레이크시티",
-  US_PT_CA:"미국 LA/샌프란시스코",US_PT_WA:"미국 시애틀",US_PT_OR:"미국 포틀랜드",
-  US_AK:"미국 알래스카",US_HI:"미국 하와이",
-  CA_ET:"캐나다 토론토",CA_CT:"캐나다 위니펙",CA_MT:"캐나다 캘거리",CA_PT:"캐나다 밴쿠버",
-  MX:"멕시코",BR_E:"브라질 상파울루",BR_W:"브라질 마나우스",
-  AR:"아르헨티나",CL:"칠레",CO:"콜롬비아",PE:"페루",
-  AU_SYD:"호주 시드니",AU_BRI:"호주 브리즈번",
-  AU_ADL:"호주 애들레이드",AU_PER:"호주 퍼스",
-  NZ:"뉴질랜드",GU:"괌",PG:"파푸아뉴기니"
-};
+  // Itinerary Data
+  const itineraryData = {
+    1: {
+      date: "10월 24일",
+      title: "밀라노 도착, 레오나르도 다빈치의 날",
+      tag: "리나테 ➔ 크로체타 ➔ 최후의 만찬 ➔ 나빌리 운하",
+      timeline: [
+        {
+          time: "10:50 ~ 12:00",
+          title: "리나테 공항 도착 및 크로체타 숙소 이동",
+          desc: "공항 M4 탑승(San Babila역 하차 후 M3 환승 또는 택시 15분) → Crocetta역 에어비앤비 체크인/짐보관.",
+          spotId: "crocetta",
+          tag: "교통 / 체크인"
+        },
+        {
+          time: "12:15 ~ 13:30",
+          title: "점심: All'Antico Vinaio & 과스탈라 정원 휴식",
+          desc: "크로체타 인근 또는 두오모 방면에서 초대형 포카치아를 테이크아웃해 1555년 과스탈라 정원 벤치에서 즐깁니다.",
+          spotId: "guastalla",
+          tag: "5번 혼밥 / 1번 공원"
+        },
+        {
+          time: "13:45 ~ 14:45",
+          title: "두오모 광장 외관 & 마르케시 1824 에스프레소",
+          desc: "크로체타에서 도보로 두오모 성당과 갤러리아를 구경하고, 200년 전통 카페 Marchesi 1824에서 바(Bar) 에스프레소 한 잔으로 시차 극복.",
+          spotId: "marchesi",
+          tag: "4번 전통 바"
+        },
+        {
+          time: "15:00 ~ 16:15",
+          title: "★ 15:30 최후의 만찬 (산타 마리아 델레 그라치에)",
+          desc: "15:00까지 매표소 티켓 교환 필수! 15분간 다빈치 진품 감상 후 브라만테 회랑 정원 산책.",
+          spotId: "lastsupper",
+          tag: "핵심 예약 스팟"
+        },
+        {
+          time: "16:45 ~ 18:00",
+          title: "스포르체스코 성 & 셈피오네 공원 산책",
+          desc: "성채 안뜰은 완전 무료 개방입니다. 붉은 벽돌 요새를 지나 평화로운 공원을 가볍게 걷습니다.",
+          spotId: "lastsupper",
+          tag: "무료 성채/공원"
+        },
+        {
+          time: "18:30 ~ 21:00",
+          title: "나빌리(Navigli) 운하 석양 산책 & 아페리티보 혼술",
+          desc: "해 질 무렵 운하를 따라 늘어선 바 중 테라스에 앉아 스프리츠와 핑거푸드로 저녁 해결.",
+          spotId: "navigli",
+          tag: "8번 바 & 운하"
+        }
+      ]
+    },
+    2: {
+      date: "10월 25일",
+      title: "코모 호수의 보석 '벨라지오' & 모던 밀라노",
+      tag: "중앙역 ➔ 벨라지오 ➔ 첸트랄레 귀환 ➔ 전망대 & 야경",
+      timeline: [
+        {
+          time: "07:45 ~ 08:20",
+          title: "크로체타 ➔ 첸트랄레 역 이동 & 기차 탑승",
+          desc: "크로체타역 M3 직행 12분 → 08:20 티라노행 기차 탑승 → Varenna-Esino(09:23 도착).",
+          spotId: "centrale",
+          tag: "08:20 기차 탑승"
+        },
+        {
+          time: "09:30 ~ 13:20",
+          title: "바렌나 ➔ 페리 15분 ➔ 벨라지오(Bellagio) 탐방",
+          desc: "페리 왕복권 구매(약 €9.20) 후 벨라지오 도착. 계단식 골목길과 호숫가 산책로 감상. 점심은 호숫가 파스타.",
+          spotId: "centrale",
+          tag: "벨라지오 당일치기"
+        },
+        {
+          time: "13:30 ~ 14:40",
+          title: "바렌나에서 13:30 기차 탑승 ➔ 밀라노 중앙역 귀환",
+          desc: "알프스 자락과 호수를 감상하며 첸트랄레역에 14:40경 도착.",
+          spotId: "centrale",
+          tag: "중앙역 복귀"
+        },
+        {
+          time: "15:00 ~ 16:30",
+          title: "BAM 공원 산책 & 보스코 베르티칼레",
+          desc: "중앙역 도보 10분. 현대적인 공원 잔디밭에서 수직 숲(Bosco Verticale)과 가에 아울렌티 광장 조망.",
+          spotId: "bam_park",
+          tag: "무료공원 / 뷰"
+        },
+        {
+          time: "17:00 ~ 18:30",
+          title: "리나센테 루프탑 두오모 뷰 & 루이니 판제로티",
+          desc: "루이니에서 갓 튀긴 판제로티 맛보고, 바로 옆 리나센테 7층 테라스에서 노을 지는 두오모 첨탑 감상.",
+          spotId: "rinascente",
+          tag: "무료전망 / 디저트"
+        }
+      ]
+    },
+    3: {
+      date: "10월 26일 (월)",
+      title: "스위스 바젤 입성 & 틈새 시간 공략의 날",
+      tag: "밀라노 08:10 ➔ 바젤 12:26 ➔ 호텔 헬스/산책 ➔ 18:00 회사 리셉션",
+      timeline: [
+        {
+          time: "07:00 ~ 08:10",
+          title: "체크아웃 & 첸트랄레 08:10 EuroCity 기차 탑승",
+          desc: "크로체타 체크아웃 → M3 탑승 후 첸트랄레 2층 국제선 플랫폼 이동. 08:10 출발 바젤행 직통 기차 탑승 (알프스 통과 풍경 감상).",
+          spotId: "centrale",
+          tag: "국제선 기차"
+        },
+        {
+          time: "12:26 ~ 13:00",
+          title: "바젤 SBB 역 도착 ➔ 바젤 메리어트 호텔 이동",
+          desc: "바젤 SBB역 앞에서 트램 1번 또는 2번 탑승 (약 10분 소요, Messeplatz 하차 바로 앞). 호텔 얼리 체크인 또는 짐 보관.",
+          spotId: "basel_marriott",
+          tag: "호텔 체크인"
+        },
+        {
+          time: "13:00 ~ 14:15",
+          title: "💡 [틈새 1] 호텔 최신 피트니스 & 사우나 리프레시",
+          desc: "바젤 메리어트는 유럽 내 최고 수준의 테크노짐(TechnoGym) 최신 기구 피트니스를 보유하고 있습니다. 4시간 열차 후 굳은 몸을 30분 유산소/스트레칭으로 풀고 졸음 완벽 타파!",
+          spotId: "basel_marriott",
+          tag: "호텔 헬스장"
+        },
+        {
+          time: "14:30 ~ 16:30",
+          title: "💡 [틈새 2] 라인강변 산책 & 나룻배(Fähri) 체험",
+          desc: "호텔 도보 7분 거리 라인강 제방 산책. 1226년 지어진 미틀레레 다리를 감상하고, 바람을 쐬며 무동력 전통 나룻배(Fähri, CHF 1.6~2)를 타며 바젤 대성당 뷰 감상.",
+          spotId: "rhine_river",
+          tag: "라인강 산책 / 뷰"
+        },
+        {
+          time: "16:45 ~ 17:30",
+          title: "💡 [틈새 3] Coop 클라라플라츠 마켓 간식 & 초콜릿 쇼핑",
+          desc: "호텔 인근 Claraplatz의 대형 Coop 슈퍼마켓 방문. 현지 스위스 미네랄 워터, 견과류 및 선물용 린트/레더라 초콜릿 정가 쇼핑.",
+          spotId: "coop_claraplatz",
+          tag: "스위스 슈퍼마켓"
+        },
+        {
+          time: "18:00 ~",
+          title: "★ 18:00 회사 동료/파트너 리셉션 저녁 식사",
+          desc: "호텔 환복 후 공식 리셉션 디너 참석. 낮 동안의 운동과 야외 산책 덕분에 시차 졸림 없이 산뜻한 컨디션으로 참여 가능합니다.",
+          spotId: "basel_marriott",
+          tag: "공식 회사 일정"
+        }
+      ]
+    },
+    swiss: {
+      date: "스위스 여정 종합",
+      title: "화~금 출장 틈새 & 금/토 베른 ➔ 취리히 출국",
+      tag: "바젤 틈새 시간 ➔ 금욜 베른 야경 ➔ 토욜 취리히 17:30 비행기",
+      timeline: [
+        {
+          time: "화~목 아침/저녁",
+          title: "바젤 출장 중 틈새 시간 추천 루틴",
+          desc: "1) 아침 06:45 호텔 헬스장에서 가벼운 러닝. 2) 출장지 이동 시 호텔 무료 'BaselCard'로 시내 트램 전선 무료 이용. 3) 저녁 후 라인강변 야경 조깅.",
+          spotId: "basel_marriott",
+          tag: "출장 틈새 팁"
+        },
+        {
+          time: "금요일 저녁",
+          title: "직원들과 베른(Bern) 저녁 나들이 & 호텔 체크인",
+          desc: "바젤에서 기차로 베른(약 55분 소요). 유네스코 구시가지 천문 시계탑(Zytglogge)과 아케이드 거리 산책 후 아레강변 뷰가 보이는 장미공원(Rosengarten)에서 야경 감상 및 스위스 퐁듀/치즈 식사.",
+          spotId: "bern_altstadt",
+          tag: "동료들과 베른 나들이"
+        },
+        {
+          time: "토요일 오전",
+          title: "베른 곰 공원(BärenPark) & 아침 구시가지 산책",
+          desc: "체크아웃 전 베른의 상징인 곰 공원 산책로와 아레강 에메랄드빛 강물 뷰 감상. 베른역 코인라커나 호텔에 짐 보관 후 여유로운 모닝커피.",
+          spotId: "bern_rosengarten",
+          tag: "토요 힐링 산책"
+        },
+        {
+          time: "토요일 13:00~14:30",
+          title: "베른역 ➔ 취리히 공항역(Zürich Flughafen) 기차 이동",
+          desc: "★ 베른역에서 취리히 공항까지 환승 없는 직통 IR/IC 열차 탑승(약 1시간 15분). 17:30 비행기이므로 최소 15:00 전 공항역 도착 필수!",
+          spotId: "zurich_airport",
+          tag: "공항 직행 기차"
+        },
+        {
+          time: "토요일 15:00~17:30",
+          title: "취리히 공항 도착, 면세점 쇼핑 & 17:30 탑승",
+          desc: "체크인 및 수하물 위탁 후 취리히 공항 내 대형 복합몰 'The Circle' 구경 및 스위스 초콜릿/시계 쇼핑 후 귀국편 탑승.",
+          spotId: "zurich_airport",
+          tag: "17:30 출국"
+        }
+      ]
+    }
+  };
 
-var CHRONO_DEFAULTS = {
-  "extreme-morning": {bed:"21:00", wake:"05:00"},
-  "morning":         {bed:"22:30", wake:"06:30"},
-  "neutral":         {bed:"23:30", wake:"07:30"},
-  "evening":         {bed:"01:00", wake:"09:00"}
-};
+  // --- Interactive Map Setup (Leaflet) ---
+  let map;
+  let markers = {};
 
-var lastData = null;
+  function initMap() {
+    try {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false
+      }).setView([46.5, 8.5], 7);
 
-/* ═══════════════════════════════════════════════
-   UTILS
-═══════════════════════════════════════════════ */
-function mod1440(m) { return ((m % 1440) + 1440) % 1440; }
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+      }).addTo(map);
 
-function timeToMins(t) {
-  var p = t.split(":");
-  return parseInt(p[0], 10) * 60 + parseInt(p[1], 10);
-}
-function minsToTime(m) {
-  m = mod1440(m);
-  var h = Math.floor(m / 60), mm = m % 60;
-  return ("0" + h).slice(-2) + ":" + ("0" + mm).slice(-2);
-}
-function offsetStr(mins) {
-  if (mins === 0) return "UTC+0";
-  var sign = mins > 0 ? "+" : "-";
-  var abs = Math.abs(mins);
-  var h = Math.floor(abs / 60), m = abs % 60;
-  return "UTC" + sign + h + (m ? ":" + ("0" + m).slice(-2) : "");
-}
-function diffLabel(diff) {
-  var abs = Math.abs(diff);
-  var h = Math.floor(abs / 60), m = abs % 60;
-  return (diff >= 0 ? "+" : "-") + h + "시간" + (m ? " " + m + "분" : "");
-}
-function showToast(msg) {
-  var t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  setTimeout(function () { t.classList.remove("show"); }, 2800);
-}
-function showEl(id) { document.getElementById(id).classList.remove("hidden"); }
-function hideEl(id) { document.getElementById(id).classList.add("hidden"); }
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-/* 낮 판별: 06:00~20:00 */
-function isDaytime(mins) {
-  var m = mod1440(mins);
-  return m >= 360 && m <= 1200;
-}
+      placesData.forEach(place => {
+        const isHighlight = place.id.includes('marriott') || place.id === 'lastsupper' || place.id === 'crocetta' || place.id === 'bern_altstadt';
+        const color = isHighlight ? '#C85A32' : '#2563EB';
+        const iconHtml = `
+          <div style="background-color: ${color}; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2.5px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.3); color: white; font-size: 11px;">
+            <i class="fa-solid fa-location-dot"></i>
+          </div>
+        `;
 
-/* ═══════════════════════════════════════════════
-   STEP NAV
-═══════════════════════════════════════════════ */
-function setStep(n) {
-  for (var i = 1; i <= 3; i++) {
-    var el = document.getElementById("step-ind-" + i);
-    el.classList.remove("active", "done");
-    if (i < n) el.classList.add("done");
-    if (i === n) el.classList.add("active");
+        const customIcon = L.divIcon({
+          html: iconHtml,
+          className: 'custom-leaflet-pin',
+          iconSize: [26, 26],
+          iconAnchor: [13, 26],
+          popupAnchor: [0, -24]
+        });
+
+        const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(map);
+        
+        const popupContent = `
+          <div class="text-xs p-1 max-w-[210px] break-keep">
+            <span class="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 inline-block mb-1">${place.category}</span>
+            <div class="font-bold text-slate-900 text-sm mb-1">${place.name}</div>
+            <p class="text-slate-600 mb-1.5 text-[11px] leading-relaxed">${place.desc}</p>
+            <div class="text-[11px] text-emerald-700 font-medium bg-emerald-50 p-1.5 rounded">💡 ${place.tip}</div>
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+        markers[place.id] = marker;
+      });
+
+      // Invalidate size to guarantee no grey/broken tiles on load
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 300);
+
+    } catch (e) {
+      console.error("Map initialization failed:", e);
+    }
   }
-}
-function goToStep1() { showEl("section-sleep"); hideEl("section-flight"); hideEl("section-result"); setStep(1); }
-function goToStep2() { hideEl("section-sleep"); showEl("section-flight"); hideEl("section-result"); setStep(2); }
-function goToStep3() {
-  hideEl("section-sleep"); hideEl("section-flight"); showEl("section-result");
-  setStep(3);
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
-function resetAll() {
-  goToStep1();
-  document.getElementById("result-area").innerHTML = "";
-  window.scrollTo({ top: 0, behavior: "smooth" });
-}
 
-/* ═══════════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════════ */
-document.addEventListener("DOMContentLoaded", function () {
-  document.querySelectorAll(".chrono-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".chrono-btn").forEach(function (b) { b.classList.remove("selected"); });
-      btn.classList.add("selected");
-      var d = CHRONO_DEFAULTS[btn.getAttribute("data-type")];
-      if (d) {
-        document.getElementById("sleep-bed").value  = d.bed;
-        document.getElementById("sleep-wake").value = d.wake;
+  function focusOnPlace(spotId) {
+    if (markers[spotId] && map) {
+      const marker = markers[spotId];
+      map.setView(marker.getLatLng(), 15, { animate: true });
+      marker.openPopup();
+      window.scrollTo({ top: 110, behavior: 'smooth' });
+    }
+  }
+
+  // --- Tab Switching Logic ---
+  function selectDay(dayKey) {
+    const itinCont = document.getElementById('itinerary-container');
+    const spotCont = document.getElementById('spots-container');
+    if (itinCont) itinCont.classList.remove('hidden');
+    if (spotCont) spotCont.classList.add('hidden');
+
+    ['1', '2', '3', 'swiss'].forEach(d => {
+      const btn = document.getElementById(d === 'swiss' ? 'tab-swiss' : `tab-day${d}`);
+      if (btn) {
+        btn.className = (d == dayKey)
+          ? "whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all bg-white text-slate-900 shadow-sm"
+          : "whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800";
       }
     });
-  });
-  ["sleep-bed", "sleep-wake"].forEach(function (id) {
-    document.getElementById(id).addEventListener("change", function () {
-      document.querySelectorAll(".chrono-btn").forEach(function (b) { b.classList.remove("selected"); });
+    const spotTab = document.getElementById('tab-spots');
+    if (spotTab) {
+      spotTab.className = "whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800 flex items-center justify-center";
+    }
+
+    renderItinerary(dayKey);
+
+    // Zoom map according to destination
+    if (map) {
+      map.invalidateSize();
+      if (dayKey === 1 || dayKey === 2) {
+        map.setView([45.4642, 9.1900], 13);
+      } else if (dayKey === 3) {
+        map.setView([47.5647, 7.6006], 14);
+      } else if (dayKey === 'swiss') {
+        map.setView([47.2, 7.8], 9);
+      }
+    }
+  }
+
+  function switchTab(tab) {
+    if (tab === 'spots') {
+      const itinCont = document.getElementById('itinerary-container');
+      const spotCont = document.getElementById('spots-container');
+      if (itinCont) itinCont.classList.add('hidden');
+      if (spotCont) spotCont.classList.remove('hidden');
+
+      ['1', '2', '3', 'swiss'].forEach(d => {
+        const btn = document.getElementById(d === 'swiss' ? 'tab-swiss' : `tab-day${d}`);
+        if (btn) btn.className = "whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+      });
+      const spotTab = document.getElementById('tab-spots');
+      if (spotTab) {
+        spotTab.className = "whitespace-nowrap px-3 py-1.5 font-semibold rounded-lg transition-all bg-white text-slate-900 shadow-sm flex items-center justify-center";
+      }
+      
+      renderCategoryCards();
+    }
+  }
+
+  // --- Render Functions ---
+  function renderItinerary(day) {
+    const data = itineraryData[day];
+    const container = document.getElementById('itinerary-container');
+    if (!container || !data) return;
+
+    let html = `
+      <div class="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-4 text-white shadow-sm break-keep">
+        <div class="text-[11px] font-semibold text-amber-400 uppercase tracking-widest">${data.date}</div>
+        <h2 class="text-base font-bold font-serif mt-0.5 leading-snug">${data.title}</h2>
+        <p class="text-xs text-slate-300 mt-1 flex items-center">
+          <i class="fa-solid fa-route text-amber-400 mr-1.5 shrink-0"></i> <span>${data.tag}</span>
+        </p>
+      </div>
+      <div class="relative border-l-2 border-slate-200 ml-3 pl-4 space-y-4 my-2">
+    `;
+
+    data.timeline.forEach((item) => {
+      html += `
+        <div class="relative group cursor-pointer" onclick="focusOnPlace('${item.spotId}')">
+          <div class="absolute -left-[21px] top-1.5 w-3 h-3 rounded-full bg-white border-2 border-milano-terracotta group-hover:scale-125 transition-transform"></div>
+          
+          <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80 hover:border-milano-terracotta/40 transition break-keep">
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-[11px] font-bold text-milano-terracotta font-mono tracking-tight shrink-0">${item.time}</span>
+              <span class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium truncate">${item.tag}</span>
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm mt-1 group-hover:text-milano-terracotta transition">${item.title}</h3>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">${item.desc}</p>
+            
+            <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+              <span class="text-emerald-700 font-medium flex items-center">
+                <i class="fa-solid fa-map-pin mr-1 text-emerald-500"></i> 지도 위치 보기
+              </span>
+              <span class="text-slate-400"><i class="fa-solid fa-angle-right"></i></span>
+            </div>
+          </div>
+        </div>
+      `;
     });
-  });
 
-  document.getElementById("btn-to-step2").addEventListener("click", goToStep2);
-  document.getElementById("btn-back-step1").addEventListener("click", goToStep1);
-  document.getElementById("btn-calc").addEventListener("click", function () { calculate(); goToStep3(); });
-  document.getElementById("btn-save-img").addEventListener("click", saveAsImage);
-  document.getElementById("btn-reset").addEventListener("click", resetAll);
-
-  var today = new Date();
-  var fmt   = function (d) { return d.toISOString().split("T")[0]; };
-  document.getElementById("takeoff-date").value = fmt(today);
-  var tom = new Date(today); tom.setDate(tom.getDate() + 1);
-  document.getElementById("landing-date").value = fmt(tom);
-});
-
-/* ═══════════════════════════════════════════════
-   CORE CALCULATE
-   ─────────────────────────────────────────────
-   설계 원칙
-   1. 취침 시간을 먼저 확정 (목표 취침 방향으로 하루 최대 MAX_SHIFT씩 이동)
-   2. 취침 시간을 20:00~02:00 으로 클램핑
-   3. 기상 = 취침 + 수면시간
-   4. 나머지 모든 시간은 취침/기상 기준으로 역산
-      - 저녁 빛 감소(amber): 취침 3시간 전 ~ 취침 1시간 전
-      - 빛 노출(light):
-          동쪽(east): 기상 직후 ~ 기상+2시간
-          서쪽(west): 기상+1시간 ~ 기상+3시간 (아침을 조금 늦춰 빛 노출)
-      → 어떤 경우에도 빛노출 < 청색광차단 < 취침 < 기상 순서 유지
-═══════════════════════════════════════════════ */
-var MAX_SHIFT     = 60;  /* 하루 최대 조정폭 (분) */
-var BED_MIN       = 20 * 60;       /* 20:00 */
-var BED_MAX       = 1440 * 120;       /* 02:00 (다음날) = 1440+120 */
-
-function clampBed(m) {
-  m = mod1440(m);
-  // 금지 구간: 02:01(121분) ~ 19:59(1199분)
-  if (m > 120 && m < 1200) {
-    // 가까운 경계로 끌어당김
-    var distTo0200   = m - 120;
-    var distTo2000   = 1200 - m;
-    return distTo0200 < distTo2000 ? 120 : 1200;
-  }
-  return m;
-}
-
-function calculate() {
-  var originKey   = document.getElementById("origin-country").value;
-  var destKey     = document.getElementById("dest-country").value;
-  console.log("출발지:", originKey, "오프셋:", TZ[originKey]);
-    console.log("도착지:", destKey, "오프셋:", TZ[destKey]);
-  var takeoffDate = document.getElementById("takeoff-date").value;
-  var landingDate = document.getElementById("landing-date").value;
-  var takeoffTime = document.getElementById("takeoff-time").value;
-  var landingTime = document.getElementById("landing-time").value;
-  var bedTimeStr  = document.getElementById("sleep-bed").value;
-  
-  var homeBedMins = timeToMins(bedTimeStr);
-  var sleepHours  = parseFloat(document.getElementById("sleep-hours").value) || 8;
-
-  var originOffset = parseInt(TZ[originKey], 10);
-var destOffset   = parseInt(TZ[destKey], 10);
-
-// [수정] 540을 빼는 보정 없이, 두 오프셋의 차이를 직접 구함
-// UTC+9(900)와 UTC+7(420)의 차이는 480분이 맞음. 
-// 만약 신지군이 120분을 원한다면, TZ 데이터 자체가 900/420이 아니라 9/7로 되어있어야 함.
-// 데이터가 900/420인 상태에서 시차를 120으로 만들려면 아래 공식을 써야 함.
-var rawTzDiff = (destOffset - originOffset); 
-console.log("DEBUG - 최종 확인: destOffset:", destOffset, "originOffset:", originOffset, "tzDiff:", tzDiff);
-console.log("DEBUG - 계산 전 homeBedMins:", homeBedMins);
-
-var tzDiff = rawTzDiff; 
-
-// [핵심 수정] 만약 TZ 데이터가 분 단위(900, 420)인데 시차를 2시간(120분)으로 
-// 강제 변환하고 싶다면, '시간 단위 차이'를 구해서 60을 곱하는 게 유일한 방법임.
-if (originKey === 'KR') {
-    // (420/60) - (900/60) = 7 - 15 = -8시간. 
-    // 여기서 시차를 2시간(120분)으로 만들기 위해 
-    // 단순 오프셋 차이가 아닌 '표준 시차 정규화'를 적용함.
-    var hoursDiff = (destOffset / 60) - (originOffset / 60);
-    // 한국 시간대(UTC+9)와 목적지 시간대(UTC+X)의 차이를 구함
-    tzDiff = hoursDiff * 60;
-    
-    // 강제 보정: 만약 이 계산 결과가 물리적 시차와 다르다면 
-    // 900/420 데이터셋을 15/13 등으로 매핑해야 함.
-    // 지금 상태에서 베트남(-120분)이 나오게 하려면:
-    if (destKey === 'VN') tzDiff = -120;
-    if (destKey === 'SG') tzDiff = -60;
-}
-
-console.log("최종 보정 시차(분):", tzDiff);
-
-// 디버깅용
-console.log("최종 시차(분):", tzDiff);
-console.log("계산 전 - 출발지 Offset:", originOffset, "도착지 Offset:", destOffset);
-console.log("계산 후 - 시차(분):", tzDiff);
-
-var crossedZones = Math.round(Math.abs(tzDiff) / 60);
-var sleepMins    = Math.round(sleepHours * 60);
-var homeBedMins  = timeToMins(bedTimeStr);
-
-var direction, dirLabel, dirClass;
-if      (tzDiff > 30)  { direction = "east"; dirLabel = "동쪽 이동 (시간 앞당기기)"; dirClass = "dir-east"; }
-else if (tzDiff < -30) { direction = "west"; dirLabel = "이동 (시간 늦추기)";   dirClass = "dir-west"; }
-else                   { direction = "same"; dirLabel = "시차 거의 없음";              dirClass = "dir-same"; }
-
-// 변수 중복 선언 제거: 여기서 한 번만 선언
-var daysToAdapt = direction === "same" ? 0 : 4;
-var realDaysToAdapt = direction !== "same" ? Math.ceil(Math.abs(tzDiff) / 60) : 0;
-
-/* shiftPerDay: 5일 안에 목표 취침 시간에 도달하는 1일 조정폭 */
-var totalShift  = tzDiff; 
-var shiftPerDay = (direction === "same") ? 0 : (tzDiff / 4);
-
-// [중요] 주석 오류 수정
-// 시차가 없을 때 0이 되는 걸 방지하려면 아래 조건도 확인!
-if (direction === "same") {
-    shiftPerDay = 0;
-}
-
-if (direction !== "same" && daysToAdapt > 0) {
-  // 기본적으로 daysToAdapt 일수만큼 쪼갬
-  shiftPerDay = totalShift / daysToAdapt;
-  
-  // [수정] 동/서 방향에 따른 최대 조정폭 규제 완벽 보정
-  if (direction === "east" && shiftPerDay < -90) {
-    shiftPerDay = -90;
-    daysToAdapt = Math.ceil(Math.abs(totalShift) / 90);
-  }
-  if (direction === "west" && shiftPerDay > 90) {
-    shiftPerDay = 90;
-    daysToAdapt = Math.ceil(Math.abs(totalShift) / 90);
-  }
-}
-/* ────────────────────────────────────────────────────────
-   1일차 취침: 평소 취침을 도착지 현지로 변환 (적응 전 내 몸 상태)
-──────────────────────────────────────────────────────── */
-// [깔끔하게 정리한 부분]
-var homeBedMins = timeToMins(bedTimeStr); 
-var day1Bed = (homeBedMins - tzDiff) % 1440;
-if (day1Bed < 0) day1Bed += 1440;
-console.log("DEBUG - 계산 후 day1Bed:", day1Bed);
-var days = [];
-var isSmallJetlag = Math.abs(tzDiff) < 180;
-
-for (var day = 0; day < 5; day++) {
-  var bedMins;
-  
-  if (day === 0) {
-    bedMins = day1Bed;
-  } else {
-    // [핵심] shiftPerDay는 이동량(절댓값)이고, 
-    // direction에 따라 + 또는 -를 결정해야 함!
-    var directionMultiplier = (direction === "east") ? -1 : 1;
-    var rawShift = Math.abs(shiftPerDay) * directionMultiplier;
-    
-    // 감속 계수 적용
-    var decayFactor = Math.pow(0.8, day - 1); 
-    var currentShift = rawShift * decayFactor;
-    
-    // 1. 방향성이 적용된 ideal 계산
-    var idealBedMins = days[day - 1].sleepStart + currentShift;
-    
-    // 2. [울타리] 시차가 작으면 하루 20분 제한
-    var finalTarget = idealBedMins;
-    if (isSmallJetlag) {
-        var diff = idealBedMins - days[day - 1].sleepStart;
-        if (Math.abs(diff) > 20) {
-            finalTarget = days[day - 1].sleepStart + (diff > 0 ? 20 : -20);
-        }
-    }
-    
-    // 3. 이제 이 targetMins를 써서 예외처리 진행
-    var targetMins = finalTarget;
-    var MIN_LIMIT = 1320; 
-if (targetMins < MIN_LIMIT) {
-    // 22:00보다 이르면, 원래 이동하려던 폭의 절반만 이동해서 완만하게 접근
-    var originalShift = targetMins - days[day - 1].sleepStart;
-    targetMins = days[day - 1].sleepStart + (originalShift * 0.5); 
-}
-
-    if (direction === "east" && targetMins < BED_MIN) {
-      var remainingDays = 5 - day;
-      var currentGap = day1Bed - days[day - 1].sleepStart;
-      bedMins = days[day - 1].sleepStart + (currentGap / (remainingDays + 1));
-      if (bedMins < BED_MIN) bedMins = BED_MIN + (day * 10); 
-    } 
-    else if (direction === "west" && targetMins > 120 && targetMins < 1200) {
-      var remainingDays = 5 - day;
-      // 여기서 dailyChange 대신 targetMins 사용!
-      bedMins = days[day - 1].sleepStart + ((targetMins - days[day - 1].sleepStart) * 0.7);
-      if (bedMins > 120) bedMins = 120 - (day * 15);
-    } 
-    else {
-      bedMins = clampBed(targetMins);
-    }
+    html += `</div>`;
+    container.innerHTML = html;
   }
 
-  // 분 단위 보정 마지노선 래핑
-  bedMins = mod1440(Math.round(bedMins));
-  var wakeMins = mod1440(bedMins + sleepMins);
+  function renderCategoryCards() {
+    const container = document.getElementById('spots-container');
+    if (!container) return;
 
-  /* ── 빛 노출 (기상 기준) ── */
-  var lightStart, lightEnd;
-  if (direction === "east") {
-    lightStart = mod1440(wakeMins);
-    lightEnd   = mod1440(wakeMins + 120);
-  } else if (direction === "west") {
-    lightStart = mod1440(wakeMins + 60);
-    lightEnd   = mod1440(wakeMins + 180);
-  } else {
-    lightStart = mod1440(wakeMins);
-    lightEnd   = mod1440(wakeMins + 120);
-  }
+    let html = `
+      <div class="bg-amber-50 border border-amber-200/70 p-3.5 rounded-2xl break-keep">
+        <h3 class="font-bold text-amber-900 text-sm flex items-center">
+          <i class="fa-solid fa-star text-amber-500 mr-2"></i> 밀라노 & 스위스 핵심 스팟 가이드
+        </h3>
+        <p class="text-xs text-amber-800/90 mt-1 leading-relaxed">
+          크로체타·밀라노 중심가와 바젤·베른의 핵심 스팟을 클릭하여 구글맵 및 상세 꿀팁을 확인하세요.
+        </p>
+      </div>
+      <div class="space-y-3">
+    `;
 
-  /* ── 청색광 차단: 취침 3시간 전 ~ 취침 30분 전 ── */
-  var avoidStart = mod1440(bedMins - 180);
-  var avoidEnd   = mod1440(bedMins - 30);
+    const spotCategories = [
+      {
+        category: "바젤 메리어트 호텔 (헬스 & 사우나)",
+        badge: "스위스 숙소 거점",
+        name: "Basel Marriott Hotel (Messeplatz 25)",
+        desc: "최신 테크노짐 헬스장과 모던 사우나 보유. 체크인 시 트램 무료 BaselCard 발급.",
+        history: "전시장 바로 앞 비즈니스 최고 중심지로 라인강까지 도보 7분 거리.",
+        id: "basel_marriott"
+      },
+      {
+        category: "스위스 대형 슈퍼마켓 (초콜릿/와인)",
+        badge: "호텔 도보 4분",
+        name: "Coop Claraplatz (바젤 대형 쿱)",
+        desc: "스위스 초콜릿(린트, 레더라, 카이에), 캄블리 과자, 치즈를 정가로 구매할 수 있는 거점 마트.",
+        history: "스위스는 외식 물가가 높으므로 Coop의 신선 샐러드와 간편식도 큰 도움이 됩니다.",
+        id: "coop_claraplatz"
+      },
+      {
+        category: "라인강 산책로 & 나룻배",
+        badge: "바젤 힐링 명소",
+        name: "Mittlere Brücke & 라인강변 페리",
+        desc: "1226년 역사적 다리와 무동력 나룻배(Fähri, CHF 1.6) 타고 강 건너기.",
+        history: "알프스에서 시작된 청량한 라인강 수변을 따라 걷는 바젤 현지인 최고의 산책로.",
+        id: "rhine_river"
+      },
+      {
+        category: "베른 유네스코 구시가지 & 장미공원",
+        badge: "금요일 저녁 나들이",
+        name: "Bern Zytglogge & Rosengarten",
+        desc: "중세 아케이드 거리와 천문 시계탑, 아레강 굽이치는 파노라마 전망 장미공원.",
+        history: "비가 와도 아케이드 천장 덕에 편안하며, 스위스 연방 수도의 고풍스러운 운치가 일품.",
+        id: "bern_altstadt"
+      },
+      {
+        category: "밀라노 1555년 고즈넉한 공원",
+        badge: "크로체타 도보 5분",
+        name: "과스탈라 정원 (Giardini della Guastalla)",
+        desc: "귀족 가문의 바로크 비밀 정원. 연못과 벤치가 있어 조용히 커피 마시기 최적.",
+        history: "1555년 조성된 밀라노 최고(最古)의 정원으로 도심 소음이 완벽히 차단됩니다.",
+        id: "guastalla"
+      },
+      {
+        category: "밀라노 무료 두오모 전망",
+        badge: "두오모 광장 바로 앞",
+        name: "리나센테 루프탑 7층 테라스",
+        desc: "입장료 무료! 두오모 고딕 첨탑 조각을 바로 눈앞에서 직관 가능한 뷰 포인트.",
+        history: "백화점 7층 푸드홀 안쪽 야외 테라스 난간이 최고의 포토존입니다.",
+        id: "rinascente"
+      }
+    ];
 
-  /* ── 진행률(progress) 계산 ── */
-  var progress;
-  if (direction === "same") {
-    progress = 100;
-  } else {
-    if (day === 4 || day >= daysToAdapt) {
-      progress = 100;
-    } else {
-      progress = Math.round((day / daysToAdapt) * 100);
-      if (progress >= 100) progress = 99; 
-    }
-  }
-
-    days.push({
-      day:          day + 1,
-      sleepStart:   bedMins,
-      sleepEnd:     wakeMins,
-      lightStart:   lightStart,
-      lightEnd:     lightEnd,
-      avoidStart:   avoidStart,
-      avoidEnd:     avoidEnd,
-      sunglassStart:avoidStart,
-      sunglassEnd:  avoidEnd,
-      progress:     progress,
-      adapted:      progress >= 100
+    spotCategories.forEach(spot => {
+      html += `
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm hover:border-milano-terracotta/40 transition break-keep">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold text-milano-terracotta bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200/60">${spot.category}</span>
+            <span class="text-[10px] text-slate-500 font-medium">${spot.badge}</span>
+          </div>
+          <h4 class="font-bold text-slate-900 text-sm mt-1.5">${spot.name}</h4>
+          <p class="text-xs text-slate-600 mt-1 leading-relaxed">${spot.desc}</p>
+          <div class="mt-2 p-2 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-700 leading-relaxed">
+            <strong class="text-slate-800">💡 꿀팁/배경:</strong> ${spot.history}
+          </div>
+          <div class="mt-2.5 flex items-center justify-end">
+            <button onclick="focusOnPlace('${spot.id}')" class="text-xs font-semibold text-milano-navy hover:text-milano-terracotta flex items-center">
+              <i class="fa-solid fa-location-crosshairs mr-1"></i> 지도에서 위치 확인
+            </button>
+          </div>
+        </div>
+      `;
     });
-  } // 👈 1) for 루프 안전하게 종료
 
-  lastData = {
-    originKey, destKey, originOffset, destOffset,
-    tzDiff, crossedZones, direction, dirLabel, dirClass,
-    realDaysToAdapt, daysToAdapt, sleepMins,
-    days, takeoffDate, landingDate, takeoffTime, landingTime
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+
+  // --- Clipboard Utility Function ---
+  function copyItinerarySummary() {
+    const summaryText = `[밀라노 ➔ 스위스(바젤·베른·취리히) 통합 일정 요약]
+- 10/24 (D1): 리나테(10:50) → 크로체타 체크인 → 과스탈라 정원 → 마르케시 1824 → 15:30 최후의 만찬 → 19:00 나빌리 운하
+- 10/25 (D2): 08:20 첸트랄레발 기차 → 벨라지오 호수 → 13:30 귀환 → BAM 공원(보스코 베르티칼레) → 리나센테 두오모 뷰 & 루이니
+- 10/26 (D3): 08:10 기차(밀라노발) → 12:26 바젤 SBB 도착 → 바젤 메리어트 체크인 → 💡틈새 피트니스/사우나 → 라인강 산책 & Coop 장보기 → 18:00 회사 리셉션 디너
+- 화~금 (회사 일정): 바젤 메리어트 호텔 헬스장(아침) / 호텔 무료 BaselCard 트램 이용 / 라인강 러닝
+- 금요일 저녁: 직원들과 베른(Bern) 기차 이동(55분) → 시계탑 & 장미공원(Rosengarten) 야경 & 퐁듀 디너 → 베른 호텔 투숙
+- 토요일 (출국): 베른 곰공원 산책 → 베른역 ➔ 취리히 공항역 직통 기차(1시간 15분, 15:00 전 공항 도착) → 17:30 취리히 출국`;
+
+    const textArea = document.createElement("textarea");
+    textArea.value = summaryText;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    document.body.appendChild(textArea);
+    textArea.select();
+    
+    try {
+      document.execCommand('copy');
+      showToast("전체 일정 요약이 클립보드에 복사되었습니다!");
+    } catch (err) {
+      showToast("복사 실패. 브라우저 설정을 확인하세요.");
+    }
+    document.body.removeChild(textArea);
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toast-text');
+    if (!toast || !toastText) return;
+    toastText.innerText = message;
+    toast.classList.remove('opacity-0', 'pointer-events-none');
+    toast.classList.add('opacity-100');
+
+    setTimeout(() => {
+      toast.classList.remove('opacity-100');
+      toast.classList.add('opacity-0', 'pointer-events-none');
+    }, 2500);
+  }
+
+  // --- Dual Timezone Clock Updater ---
+  function updateDualClocks() {
+    const now = new Date();
+    
+    const localFormatter = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Europe/Zurich', // Swiss & Italy same timezone (CET)
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+
+    const koreaFormatter = new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+
+    const milanEl = document.getElementById('milan-clock');
+    const koreaEl = document.getElementById('korea-clock');
+    if (milanEl) milanEl.textContent = localFormatter.format(now);
+    if (koreaEl) koreaEl.textContent = koreaFormatter.format(now);
+  }
+
+  // Window Load
+  window.onload = function() {
+    initMap();
+    renderItinerary(1);
+    updateDualClocks();
+    setInterval(updateDualClocks, 1000);
   };
-
-  renderResult(lastData);
-}
-
-/* ═══════════════════════════════════════════════
-   RENDER RESULT
-═══════════════════════════════════════════════ */
-function renderResult(data) {
-  var area  = document.getElementById("result-area");
-  var oName = COUNTRY_NAMES[data.originKey] || data.originKey;
-  var dName = COUNTRY_NAMES[data.destKey]   || data.destKey;
-  var dirArrow = data.direction === "east" ? "→ 동쪽"
-               : data.direction === "west" ? "← 서쪽" : "≈ 동일";
-
-  /* 개요 카드 */
-  var html = ""
-    + "<div class=\"card\">"
-    +   "<div class=\"card-header\">"
-    +     "<div class=\"card-icon ci-result\">🗺️</div>"
-    +     "<div>"
-    +       "<div class=\"card-title\">시차적응 플랜 생성 완료</div>"
-    +       "<div class=\"card-sub\">" + oName + " → " + dName + "</div>"
-    +     "</div>"
-    +   "</div>"
-    +   "<div class=\"info-row\">"
-    +     "<span class=\"badge badge-amber\">✈️ " + oName + " → " + dName + "</span>"
-    +     "<span class=\"dir-badge " + data.dirClass + "\">" + dirArrow + " " + data.dirLabel + "</span>"
-    +   "</div>"
-    +   "<div class=\"summary-box\"><h3>📋 개요</h3><div class=\"summary-kv\">"
-    +     "<div><dt>출발지 시간대</dt><dd>" + offsetStr(data.originOffset) + "</dd></div>"
-    +     "<div><dt>도착지 시간대</dt><dd>" + offsetStr(data.destOffset) + "</dd></div>"
-    +     "<div><dt>시차</dt><dd>" + diffLabel(data.tzDiff) + "</dd></div>"
-    +     "<div><dt>통과 시간대</dt><dd>" + data.crossedZones + "개</dd></div>"
-    +     "<div><dt>완전 적응 예상</dt><dd>" + (data.daysToAdapt > 0 ? data.daysToAdapt + "일" : "적응 불필요") + "</dd></div>"
-    +     "<div><dt>이착륙</dt><dd>" + data.takeoffDate + " " + data.takeoffTime + " → " + data.landingDate + " " + data.landingTime + "</dd></div>"
-    +   "</div></div>";
-
-  if (data.crossedZones < 2) {
-    html += "<div class=\"alert alert-info\">ℹ️ 시차가 2시간 미만이라 1~2일 내 자연 적응됩니다.</div>";
-  }
-  if (data.crossedZones >= 8) {
-    html += "<div class=\"alert alert-warn\">⚠️ 시차가 " + data.crossedZones + "시간으로 매우 큽니다. 아래 플랜을 꼼꼼히 따르면 적응 기간을 크게 단축할 수 있습니다.</div>";
-  }
-  html += "</div>";
-
-  /* 일별 탭 카드 */
-  html += ""
-    + "<div class=\"card\">"
-    +   "<div class=\"card-header\">"
-    +     "<div class=\"card-icon ci-result\">📅</div>"
-    +     "<div>"
-    +       "<div class=\"card-title\">도착지 현지 기준 일별 스케줄</div>"
-    +       "<div class=\"card-sub\">모든 시간은 <strong>도착지 현지 시간</strong> 기준입니다</div>"
-    +     "</div>"
-    +   "</div>"
-    +   "<div class=\"day-tabs\" id=\"day-tabs\">";
-
-  for (var i = 0; i < data.days.length; i++) {
-    var d = data.days[i];
-    html += "<button class=\"day-tab" + (i === 0 ? " active" : "") + "\" data-day=\"" + d.day + "\">"
-          + d.day + "일차" + (d.adapted ? " ✅" : "") + "</button>";
-  }
-  html += "</div>";
-
-  for (var j = 0; j < data.days.length; j++) {
-    var dd = data.days[j];
-    html += "<div id=\"day-content-" + dd.day + "\"" + (j !== 0 ? " class=\"hidden\"" : "") + ">";
-    html += renderDay(dd, data);
-    html += "</div>";
-  }
-  html += "</div>";
-
-  /* 팁 카드 */
-  var isEast = data.direction === "east";
-  html += ""
-    + "<div class=\"card\">"
-    +   "<div class=\"card-header\">"
-    +     "<div class=\"card-icon ci-result\">💡</div>"
-    +     "<div><div class=\"card-title\">시차적응 팁</div><div class=\"card-sub\">수면 과학 기반 추가 방법</div></div>"
-    +   "</div>"
-    +   "<div class=\"tips-grid\">"
-    +     "<div class=\"tip-card\"><div class=\"tip-head\">💊 멜라토닌</div>"
-    +     "<p>" + (isEast
-          ? "도착지 현지 취침 30분 전 0.5~3mg 복용. 새 시간대에 빠르게 잠들도록 도와줍니다."
-          : "현지 저녁 시간에 소량(0.5mg) 복용하면 생체시계를 늦추는 데 도움이 됩니다.") + "</p></div>"
-    +     "<div class=\"tip-card\"><div class=\"tip-head\">🌅 아침 빛 노출</div>"
-    +     "<p>기상 직후 30분간 밝은 빛(자연광 또는 10,000 lux 라이트 테라피)을 받으면 생체시계 리셋 효과가 극대화됩니다.</p></div>"
-    +     "<div class=\"tip-card\"><div class=\"tip-head\">🍽️ 식사 시간</div>"
-    +     "<p>도착 즉시 현지 식사 시간에 맞춰 식사하세요. 소화기관의 시계도 생체리듬 조정에 관여합니다.</p></div>"
-    +     "<div class=\"tip-card\"><div class=\"tip-head\">🕶️ 청색광 차단</div>"
-    +     "<p>취침 3시간 전부터 선글라스 또는 시차적응용 안경 착용 및 스마트폰 야간 모드. 멜라토닌 분비 보호가 핵심입니다.</p></div>"
-    +   "</div>"
-    + "</div>";
-
-  area.innerHTML = html;
-
-  document.querySelectorAll(".day-tab").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      switchDay(parseInt(btn.getAttribute("data-day"), 10));
-    });
-  });
-}
-
-/* ═══════════════════════════════════════════════
-   RENDER DAY
-═══════════════════════════════════════════════ */
-function renderDay(d, data) {
-  var lightMidRaw   = d.lightStart + 60;  
-  var isLightDay   = isDaytime(lightMidRaw);
-  var isAvoidDay   = isDaytime(d.avoidStart);
-
-  var lightTitle = isLightDay ? "밝은 햇빛 노출 권장" : "밝은 빛 권장 (야간)";
-  var lightDesc  = isLightDay
-    ? "야외 산책 또는 밝은 창가. 흐린 날도 실외 자연광은 실내 조명보다 훨씬 효과적입니다."
-    : "야간이므로, 밝은 실내등을 사용하고 스마트폰의 블루라이트 해제 및 화면 밝기를 높여주세요.";
-
-  var sgTitle = "청색광 차단 구간 (취침 3시간 전부터)";
-  var sgDesc  = isAvoidDay
-    ? "이 시간 햇빛 또는 밝은 조명이 생체시계를 반대 방향으로 틀어놓습니다. 선글라스를 착용하세요."
-    : "실내 조명, 스마트폰, TV 청색광 차단 필수. 시차적응용 안경 또는 야간 모드를 사용하세요.";
-
-  var html = "";
-
-  html += "<div style=\"margin-bottom:14px;\">";
-  if (d.progress >= 100) {
-    html += "<span class=\"badge badge-green\">✅ 현지 적응 완료!</span>";
-  } else {
-    html += "<span class=\"badge badge-amber\">적응 진행률: " + d.progress + "%</span>";
-  }
-  html += "</div>";
-
-  html += "<div class=\"schedule-list\">"
-    + schedItem("sched-morning",  "☀️",  "morning-color",
-        lightTitle,
-        minsToTime(d.lightStart) + " ~ " + minsToTime(d.lightEnd),
-        lightDesc)
-    + schedItem("sched-sunglass", "🕶️", "sunglass-color",
-        sgTitle,
-        minsToTime(d.avoidStart) + " ~ " + minsToTime(d.avoidEnd),
-        sgDesc)
-    + schedItem("sched-sleep",    "😴",  "sleep-color",
-        "취침 권장 시간",
-        minsToTime(d.sleepStart),
-        "침실은 완전 암막. 무드등과 같이 은은한 조명만 허용하고 스마트폰을 침대 밖에 두세요.")
-    + schedItem("sched-awake",    "⏰",  "awake-color",
-        "기상 권장 시간",
-        minsToTime(d.sleepEnd),
-        "기상 즉시 커튼을 열거나 라이트 테라피 램프를 켜세요. 하루 중 가장 강력한 시계 리셋 타이밍입니다.")
-    + "</div>";
-
-  var tlLightLabel = isLightDay ? "☀️ 자연광" : "💡 라이트테라피";
-  var tlLightTxt   = isLightDay ? "☀️" : "💡";
-
-  html += "<div style=\"margin-top:22px;\">"
-    + "<div style=\"font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;\">⏱️ 24시간 타임라인 — 도착지 현지 시간 기준</div>"
-    + "<div style=\"display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;\">"
-    + legendDot("linear-gradient(90deg,#8b3a50,#b85c6e)", "😴 수면")
-    + legendDot("linear-gradient(90deg,#1a6a8a,#4fc3f7)", isLightDay ? "☀️ 자연광" : "💡 라이트 테라피")
-    + legendDot("linear-gradient(90deg,#8a4a00,#f0a500)", "🕶️ 청색광 차단")
-    + "</div>"
-    + "<div style=\"overflow-x:auto;padding-bottom:6px;\">"
-    + "<div style=\"min-width:520px;\">"
-    + buildRuler()
-    + buildTrackRow("😴 수면",       d.sleepStart,  d.sleepEnd,  "tl-seg-sleep",   "😴")
-    + buildTrackRow(tlLightLabel,    d.lightStart,  d.lightEnd,  "tl-seg-morning", tlLightTxt)
-    + buildTrackRow("🕶️ 청색광차단", d.avoidStart,  d.avoidEnd,  "tl-seg-amber",   "🕶️")
-    + "</div></div></div>";
-
-  return html;
-}
-
-function legendDot(grad, label) {
-  return "<div style=\"display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);\">"
-    + "<div style=\"width:18px;height:8px;border-radius:3px;background:" + grad + ";\"></div>"
-    + label + "</div>";
-}
-
-function buildRuler() {
-  var html = "<div style=\"display:flex;margin-bottom:4px;margin-left:92px;\">";
-  for (var h = 0; h < 24; h++) {
-    var isEven = h % 2 === 0;
-    html += "<div style=\"flex:1;font-size:" + (isEven ? "9" : "7") + "px;"
-      + "color:" + (isEven ? "var(--text-dim)" : "transparent") + ";font-weight:600;\">"
-      + (isEven ? ("0" + h).slice(-2) : ".") + "</div>";
-  }
-  html += "</div>";
-  return html;
-}
-
-function buildTrackRow(label, start, end, cls, txt) {
-  var s = mod1440(start);
-  var e = mod1440(end);
-  var segs = "";
-
-  if (s === e) {
-    /* 구간 없음 */
-  } else if (s < e) {
-    var wPct = ((e - s) / 1440 * 100).toFixed(2);
-    var pPct = (s / 1440 * 100).toFixed(2);
-    segs = seg(cls, pPct, wPct, minsToTime(s) + " ~ " + minsToTime(e), parseFloat(wPct) > 5 ? txt : "");
-  } else {
-    var w1   = ((1440 - s) / 1440 * 100).toFixed(2);
-    var w2   = (e / 1440 * 100).toFixed(2);
-    var p1   = (s / 1440 * 100).toFixed(2);
-    segs += seg(cls, p1,  w1, minsToTime(s) + " ~ 24:00",         parseFloat(w1) > 5 ? txt : "");
-    if (parseFloat(w2) > 0)
-      segs += seg(cls, "0.00", w2, "00:00 ~ " + minsToTime(e), parseFloat(w2) > 5 ? txt : "");
-  }
-
-  return "<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:5px;\">"
-    + "<div style=\"width:88px;flex-shrink:0;font-size:10px;font-weight:600;"
-    +   "color:var(--text-muted);text-align:right;white-space:nowrap;padding-right:4px;\">"
-    + label + "</div>"
-    + "<div style=\"flex:1;position:relative;height:28px;"
-    +   "background:rgba(255,255,255,0.03);"
-    +   "border:1px solid var(--border);border-radius:8px;overflow:hidden;\">"
-    + segs
-    + "</div></div>";
-}
-
-function seg(cls, left, width, title, txt) {
-  return "<div class=\"tl-segment " + cls + "\""
-    + " style=\"left:" + left + "%;width:" + width + "%;\" title=\"" + title + "\">"
-    + txt + "</div>";
-}
-
-function schedItem(cls, icon, colorCls, title, time, desc) {
-  return "<div class=\"sched-item " + cls + "\">"
-    + "<div class=\"sched-icon\">" + icon + "</div>"
-    + "<div class=\"sched-info\">"
-    +   "<div class=\"sched-title " + colorCls + "\">" + title + "</div>"
-    +   "<div class=\"sched-time  " + colorCls + "\">" + time  + "</div>"
-    +   "<div class=\"sched-desc\">" + desc + "</div>"
-    + "</div>"
-    + "<div class=\"sched-day\">도착지 현지</div>"
-    + "</div>";
-}
-
-function switchDay(n) {
-  document.querySelectorAll("[id^=\"day-content-\"]").forEach(function (el) { el.classList.add("hidden"); });
-  document.querySelectorAll(".day-tab").forEach(function (el) { el.classList.remove("active"); });
-  var c = document.getElementById("day-content-" + n);
-  if (c) c.classList.remove("hidden");
-  document.querySelectorAll(".day-tab").forEach(function (btn) {
-    if (parseInt(btn.getAttribute("data-day"), 10) === n) btn.classList.add("active");
-  });
-}
-
-/* ═══════════════════════════════════════════════
-   IMAGE EXPORT
-═══════════════════════════════════════════════ */
-function saveAsImage() {
-  if (!lastData) { showToast("먼저 플랜을 생성해주세요."); return; }
-  var oName = COUNTRY_NAMES[lastData.originKey] || lastData.originKey;
-  var dName = COUNTRY_NAMES[lastData.destKey]   || lastData.destKey;
-
-  document.getElementById("sc-subtitle").textContent =
-    oName + " → " + dName + " | " + lastData.takeoffDate + " 출발";
-
-  var bodyHtml = "<div style=\"font-size:13px;color:#ede0d0;line-height:1.8;\">";
-  lastData.days.forEach(function (d) {
-    bodyHtml += ""
-      + "<div style=\"margin-bottom:12px;padding:12px;background:#2a221a;"
-      +   "border-radius:10px;border:1px solid #4a3d2e;\">"
-      +   "<div style=\"font-weight:700;font-size:14px;margin-bottom:8px;color:#f5c89a;\">"
-      +     d.day + "일차 (적응 진행률: " + d.progress + "%)</div>"
-      +   "<div>☀️ 빛 노출: <strong>" + minsToTime(d.lightStart) + " ~ " + minsToTime(d.lightEnd) + "</strong></div>"
-      +   "<div>🕶️ 청색광 차단: <strong>" + minsToTime(d.avoidStart) + " ~ " + minsToTime(d.avoidEnd) + "</strong></div>"
-      +   "<div>😴 취침: <strong>" + minsToTime(d.sleepStart) + "</strong></div>"
-      +   "<div>⏰ 기상: <strong>" + minsToTime(d.sleepEnd) + "</strong></div>"
-      + "</div>";
-  });
-  bodyHtml += "<div style=\"margin-top:10px;font-size:11px;color:#6e5a46;\">* 모든 시간은 도착지 현지 시간 기준 | LunaSync</div></div>";
-
-  document.getElementById("sc-body").innerHTML = bodyHtml;
-
-  var sc = document.getElementById("save-card");
-  sc.style.display = "block";
-
-  html2canvas(sc, { backgroundColor: "#1a1410", scale: 2, useCORS: true, logging: false })
-    .then(function (canvas) {
-      sc.style.display = "none";
-      var link = document.createElement("a");
-      link.download = "LunaSync_" + (COUNTRY_NAMES[lastData.destKey] || lastData.destKey)
-                    + "_" + lastData.takeoffDate + ".png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-      showToast("✅ 이미지가 저장되었습니다!");
-    })
-    .catch(function (err) {
-      sc.style.display = "none";
-      showToast("저장 중 오류가 발생했습니다.");
-      console.error(err);
-    });
-}
 </script>
-<footer class="service-footer">
-  <div class="footer-container">
-    <p class="company-info">
-      <strong>(주)플래닛랩스(plan:it labs)</strong> | 대표자: 이종석 | 사업자등록번호: [284-46-01304]
-    </p>
-    <div class="footer-links">
-      <span class="link-item" onclick="openModal('terms')">이용약관</span> | 
-      <span class="link-item" onclick="openModal('privacy')">개인정보처리방침</span> | 
-      <span class="link-item" onclick="openModal('refund')">환불정책</span>
-    </div>
-  </div>
-</footer>
-
-<div id="policyModal" class="modal-overlay" onclick="closeModal()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <span class="modal-close" onclick="closeModal()">&times;</span>
-    <h3 id="modalTitle">약관 제목</h3>
-    <div id="modalBody" class="modal-text">내용 들어가는 곳</div>
-  </div>
-</div>
 </body>
-  <script>
-    function switchLocations() {
-      var originSelect = document.getElementById("origin-country");
-      var destSelect = document.getElementById("dest-country");
-      
-      var temp = originSelect.value;
-      originSelect.value = destSelect.value;
-      destSelect.value = temp;
-      
-      console.log("위치 스위치 완료!");
-  }
- const policyTexts = {
-    terms: `[이용약관]\n\n제1조 (목적)\n본 약관은 '플래닛랩스'(이하 '회사')가 제공하는 LunaSync 서비스 및 관련 제반 서비스의 이용과 관련하여 회사와 회원 간의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.\n\n제2조 (이용계약의 성립)\n1. 이용계약은 회원이 본 약관의 내용에 동의하고 서비스 이용 신청을 하며, 회사가 이를 승낙함으로써 성립합니다.\n2. 회사는 기술상 또는 업무상 지장이 없는 한 신청을 승낙함을 원칙으로 합니다.\n\n제3조 (서비스의 제공 및 변경)\n1. 회사는 회원에게 생체리듬 기반 시차 적응 스케줄링 가이드 서비스를 제공합니다.\n2. 본 서비스가 제공하는 스케줄은 사용자의 입력 데이터에 기반한 정보성 가이드이며, 의료적 진단이나 처방을 대신할 수 없습니다.\n3. 회사는 서비스의 개선을 위해 사전 고지 후 서비스 내용을 변경할 수 있습니다.`,
-    privacy: `[개인정보처리방침]\n\n'플래닛랩스'는 회원의 개인정보를 소중히 다루며, 개인정보보호법 등 관련 법령을 준수합니다.\n\n1. 수집하는 개인정보 항목\n- 필수항목: 서비스 이용 기록, 기기 정보, 타임존 데이터, 수면 패턴 기록\n- 선택항목: 이메일 주소 (이벤트 및 서비스 안내 목적)\n\n2. 개인정보의 수집 및 이용 목적\n- 사용자 맞춤형 시차 적응 플랜 알고리즘 연산 및 결과 제공\n- 서비스 오류 수정, 부정 이용 방지 및 서비스 품질 개선\n\n3. 개인정보의 보유 및 이용기간\n회원의 개인정보는 원칙적으로 서비스 회원 탈퇴 시 또는 목적이 달성된 후 지체 없이 파기합니다. 단, 관련 법령의 규정에 의하여 보존할 필요가 있는 경우 일정 기간 보존합니다.`,
-    refund: `[환불정책]\n\n1. 본 서비스에서 제공하는 시차적응 플랜 및 분석 결과물은 전자상거래법 제17조 제2항에 따른 '소비자의 주문에 따라 개별적으로 생산되는 재화' 또는 '디지털 콘텐츠'에 해당합니다.\n\n2. 콘텐츠의 특성상 결제 완료와 동시에 데이터 연산 및 서비스 열람 권한이 즉시 부여되므로, 회원의 단순 변심에 의한 청약철회(환불)는 원칙적으로 불가능합니다.\n\n3. 단, 아래의 경우에 한하여 7일 이내에 고객센터(이메일)를 통해 환불 신청이 가능합니다.\n- 시스템 오류 및 결함으로 인해 서비스를 정상적으로 이용하지 못한 경우\n- 중복 결제 등 오결제가 발생한 경우\n\n4. 환불은 회사의 승인 후 영업일 기준 3~5일 이내에 결제 수단별 취소 절차에 따라 진행됩니다.`
-  };
-
-  function openModal(type) {
-    const modal = document.getElementById('policyModal');
-    const title = document.getElementById('modalTitle');
-    const body = document.getElementById('modalBody');
-    
-    if (type === 'terms') title.innerText = '이용약관';
-    else if (type === 'privacy') title.innerText = '개인정보처리방침';
-    else if (type === 'refund') title.innerText = '환불정책';
-    
-    body.innerText = policyTexts[type];
-    modal.style.display = 'flex';
-  }
-
-  function closeModal() {
-    document.getElementById('policyModal').style.display = 'none';
-  }
-</script>
 </html>
