@@ -564,8 +564,10 @@
         attributionControl: false
       }).setView([46.5, 8.5], 7);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
+      // API Key가 전혀 필요 없는 OpenStreetMap 공식 표준 타일로 교체
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        crossOrigin: true
       }).addTo(map);
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
